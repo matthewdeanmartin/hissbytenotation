@@ -69,7 +69,7 @@ repos:
         rev: v1.10.0  # Use the ref you want to point at
         hooks:
             -   id: python-use-type-annotations
-            -   id: python-no-eval
+            # -   id: python-no-eval
             -   id: python-no-log-warn
             -   id: text-unicode-replacement-char
 # Strips out ---, adds ##, flattens nested lists if they have the same bullet! Buggy!

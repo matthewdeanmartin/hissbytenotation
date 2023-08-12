@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hissbytenotation"
-version = "0.1.0"
+version = "0.2.0"
 description = "Serialize and deserialize data to python source notation (hbn)"
 authors = ["Matthew Martin <matthewdeanmartin@gmail.com>"]
 keywords = ["serializer", "deserializer", "hbn",]
@@ -35,25 +35,19 @@ documentation ="https://github.com/matthewdeanmartin/hissbytenotation"
 "Change Log" = "https://github.com/matthewdeanmartin/hissbytenotation/blob/main/CHANGES.md"
 
 [tool.poetry.dependencies]
-# DOM parser
-mistune = "<3.0.0"
-# support more types to table
-tabulate = "*"
-# image/binary support
-pillow = "*"
-# 3.8/3/9 support
-typing-extensions = { version = ">=4.0.0, <5.0", python = "<=3.9" }
+python = ">=3.8"
 
 [tool.poetry.dev-dependencies]
-# alternate formatter
 mdformat = "*"
-#marko = "*"
-#mistletoe = "*"
-pytest = "*"
 vermin = "*"
 hypothesis = {extras = ["cli"], version = "*"}
 pre-commit = "*"
 mypy = "*"
+pytest = "*"
+pytest-cov = "*"
+ruff = "*"
+tox = "*"
+scriv = "*"
 
 [tool.black]
 line-length = 120

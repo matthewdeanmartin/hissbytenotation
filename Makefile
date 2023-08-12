@@ -3,16 +3,16 @@
 
 FILES := $(wildcard **/*.py)
 
-# if you wrap everything in pipenv run, it runs slower.
+# if you wrap everything in poetry run, it runs slower.
 ifeq ($(origin VIRTUAL_ENV),undefined)
-    VENV := pipenv run
+    VENV := poetry run
 else
     VENV :=
 endif
 
-Pipfile.lock: Pipfile
+poetry.lock: pyproject.toml
 	@echo "Installing dependencies"
-	@pipenv install --dev
+	@poetry lock
 
 clean-pyc:
 	@echo "Removing compiled files"
@@ -29,11 +29,11 @@ clean: clean-pyc clean-test
 
 # tests can't be expected to pass if dependencies aren't installed.
 # tests are often slow and linting is fast, so run tests on linted code.
-test: clean .build_history/pylint .build_history/bandit Pipfile.lock
+test: clean .build_history/pylint .build_history/bandit poetry.lock
 	@echo "Running unit tests"
 	# $(VENV) pytest hissbytenotation --doctest-modules
-	$(VENV) python -m unittest discover
-	$(VENV) py.test test --cov=hissbytenotation --cov-report=html --cov-fail-under 50
+	# $(VENV) python -m unittest discover
+	$(VENV) py.test test --cov=hissbytenotation --cov-report=html --cov-fail-under 65
 
 .build_history:
 	@mkdir -p .build_history
@@ -48,7 +48,7 @@ isort: .build_history/isort
 
 .build_history/black: .build_history .build_history/isort $(FILES)
 	@echo "Formatting code"
-	$(VENV) black . --exclude .virtualenv
+	$(VENV) black . --exclude ".virtualenv|.tox"
 	@touch .build_history/black
 
 .PHONY: black
@@ -64,7 +64,7 @@ pre-commit: .build_history/pre-commit
 
 .build_history/bandit: .build_history $(FILES)
 	@echo "Security checks"
-	$(VENV)  bandit .
+	$(VENV)  bandit hissbytenotation
 	@touch .build_history/bandit
 
 .PHONY: bandit
