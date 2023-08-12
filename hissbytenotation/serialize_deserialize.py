@@ -2,7 +2,7 @@
 (De)serialize to and from python source
 """
 import ast
-from typing import Any
+from typing import Any, Dict
 
 from hissbytenotation.deserialize_by_import import loads_via_import
 from hissbytenotation.supported_types import RecursiveSerializable
@@ -43,7 +43,7 @@ def loads(
     if by_import:
         return loads_via_import(source_code)
     if by_exec:
-        data_dict = {}
+        data_dict: Dict[str, Any] = {}
         # pylint: disable=exec-used
         exec(f"data = {source_code}", data_dict)
         return data_dict["data"]
