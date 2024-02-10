@@ -160,3 +160,7 @@ cython_debug/
 #.idea/
 
 .idea/
+.ruff_cache
+.mypy_cache
+.pytest_cache
+.virtualenv
