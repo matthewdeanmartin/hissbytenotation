@@ -1,6 +1,7 @@
 """
 Hack to load python source faster.
 """
+
 import importlib.machinery
 import importlib.util
 from typing import Any

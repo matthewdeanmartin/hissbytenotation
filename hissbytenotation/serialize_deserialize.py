@@ -1,6 +1,7 @@
 """
 (De)serialize to and from python source
 """
+
 import ast
 from typing import Any, Dict
 
