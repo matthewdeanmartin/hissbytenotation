@@ -10,14 +10,16 @@ data = generator.generate_test_data(no_bytes=True, no_sets=True, no_elipsis=True
 
 aeval = Interpreter(minimal=True)
 
+
 def benchmark_just_repr():
     # load
-    repr_string = repr(data)
+    repr(data)
+
 
 def benchmark_asteval():
     # load
     repr_string = repr(data)
-    _result = aeval(repr_string)
+    aeval(repr_string)
 
 
 def benchmark_hbn_no_validate_exec():
@@ -63,7 +65,8 @@ def benchmark_yaml():
 
     yaml.load(serialized, Loader=yaml.FullLoader)
 
-count=1000
+
+count = 1000
 
 pickle_time = timeit.timeit(benchmark_pickle, number=count)
 json_time = timeit.timeit(benchmark_json, number=count)

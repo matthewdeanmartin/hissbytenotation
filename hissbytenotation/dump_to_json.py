@@ -1,6 +1,7 @@
 """
 Helper to allow hbn types to be dumped to json safely.
 """
+
 import json
 from typing import Any
 

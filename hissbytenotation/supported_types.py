@@ -1,6 +1,7 @@
 """
 Type declarations
 """
+
 from typing import Union
 
 # strings, bytes, numbers, tuples, lists, dicts, sets, booleans, and None
