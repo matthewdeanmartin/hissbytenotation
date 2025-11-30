@@ -28,7 +28,10 @@ dependencies = []
 
 
 [dependency-groups]
-dev = ["mdformat", "vermin", "hypothesis[cli]", "pre-commit", "mypy", "pytest", "pytest-cov", "ruff", "tox", "scriv"]
+dev = ["mdformat", "vermin", "hypothesis[cli]",
+    "pre-commit", "mypy", "pytest", "pytest-cov", "ruff", "tox",
+    "isort","black","pylint", "bandit","pre-commit"
+    ]
 
 [tool.black]
 line-length = 120
