@@ -45,7 +45,7 @@ repos:
         rev: 25.11.0
         hooks:
             -   id: black
-                language_version: python3.10
+                language_version: python3.14
 #    -   repo: https://github.com/pycqa/isort
 #        rev: 5.11.4
 #        hooks:
@@ -54,7 +54,7 @@ repos:
 #                args:
 #                    - --profile black
     -   repo: https://github.com/astral-sh/ruff-pre-commit
-        rev: v0.14.6
+        rev: v0.14.7
         hooks:
             -   id: ruff
                 exclude: ^dead_code/
