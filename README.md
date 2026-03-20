@@ -59,15 +59,16 @@ Because ast.literal_eval is so slow, there are other options for deserialization
 
 ## Deserialization benchmark — 1,000 iterations
 
-| Method                 |    Time | Notes  |
-|------------------------|--------:|--------|
-| Pickle                 |  0.018s |        |
-| JSON                   |  0.042s |        |
-| **HBN (Rust parser)**  |  0.086s | safe   |
-| HBN (eval)             |  0.930s | unsafe |
-| HBN (ast.literal_eval) |  1.177s | safe   |
-| HBN (exec)             |  1.200s | unsafe |
-| HBN (import)           |  1.500s | unsafe |
+| Method                 |    Time | Notes     |
+|------------------------|--------:|-----------|
+| Pickle                 |  0.084s |           |
+| JSON                   |  0.252s |           |
+| **HBN (Rust parser)**  |  0.510s | safe      |
+| HBN (eval)             |  4.968s | unsafe    |
+| HBN (ast.literal_eval) |  6.984s | safe      |
+| HBN (exec)             |  5.357s | unsafe    |
+| HBN (import)           | 10.790s | unsafe    |
+| repr() only            |  0.339s | serialize |
 
 **Rust parser is ~14x faster than ast.literal_eval** and the fastest safe option.
 

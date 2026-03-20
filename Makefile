@@ -45,10 +45,34 @@ mypy:
 	@echo "Security checks"
 	$(VENV)  mypy hissbytenotation
 
-.PHONY: benchmark
+.PHONY: benchmark perf-wheel perf-python-tests perf-rust-tests perf-rust-only perf-benchmark perf-check perf
 benchmark:
 	@echo "Running benchmarks"
 	$(VENV) python -m benchmark
+
+perf-wheel:
+	@echo "Building release Rust wheel"
+	uv run --with maturin maturin build --release --manifest-path rust\Cargo.toml --out rust\dist
+
+perf-python-tests: perf-wheel
+	@echo "Running Python tests with the release Rust wheel"
+	@powershell -NoProfile -Command '$$wheel = Get-ChildItem "rust\dist\hbn_rust-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $$wheel) { throw "No wheel built in rust\dist" }; uv run --with $$wheel.FullName python -m pytest -q'
+
+perf-rust-tests:
+	@echo "Running Rust unit tests"
+	cargo test --manifest-path rust\Cargo.toml
+
+perf-rust-only: perf-wheel
+	@echo "Benchmarking the Rust parser only"
+	@powershell -NoProfile -Command '$$wheel = Get-ChildItem "rust\dist\hbn_rust-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $$wheel) { throw "No wheel built in rust\dist" }; uv run --with $$wheel.FullName python -m benchmark.rust_only -n 5000'
+
+perf-benchmark: perf-wheel
+	@echo "Running the full benchmark suite with the release Rust wheel"
+	@powershell -NoProfile -Command '$$wheel = Get-ChildItem "rust\dist\hbn_rust-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $$wheel) { throw "No wheel built in rust\dist" }; uv run --with $$wheel.FullName python -m benchmark -n 5000'
+
+perf-check: perf-python-tests perf-rust-tests
+
+perf: perf-check perf-rust-only perf-benchmark
 
 check: test pylint bandit pre-commit mypy
 

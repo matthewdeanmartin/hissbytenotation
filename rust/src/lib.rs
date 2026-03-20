@@ -165,6 +165,23 @@ impl<'a> Parser<'a> {
             false
         };
 
+        if !triple {
+            let start = self.pos;
+            let mut end = self.pos;
+            while end < self.input.len() {
+                match self.input[end] {
+                    b'\\' | b'\n' | b'\r' => break,
+                    ch if ch == quote => {
+                        let s = std::str::from_utf8(&self.input[start..end])
+                            .map_err(|_| ParseError::new("invalid UTF-8", start))?;
+                        self.pos = end + 1;
+                        return Ok(s.to_owned());
+                    }
+                    _ => end += 1,
+                }
+            }
+        }
+
         let mut result = String::new();
         loop {
             if self.pos >= self.input.len() {

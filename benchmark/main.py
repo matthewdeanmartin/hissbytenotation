@@ -78,14 +78,15 @@ def run_benchmarks(count: int = 1000) -> None:
 
     # --- Print ---
     print(f"\n## Deserialization benchmark — {count} iterations\n")
-    print(f"{'Method':<30} {'Time':>10} {'Notes':>10}")
-    print("-" * 55)
+    print("| Method                 |    Time | Notes     |")
+    print("|------------------------|--------:|-----------|")
 
     ast_time = None
     for name, time_s, note in results:
         if name == "HBN (ast.literal_eval)":
             ast_time = time_s
-        print(f"{name:<30} {time_s:>9.3f}s {note:>10}")
+        display_name = f"**{name}**" if name == "HBN (Rust parser)" else name
+        print(f"| {display_name:<22} | {time_s:>6.3f}s | {note:<9} |")
 
     if ast_time and HAS_RUST:
         rust_time = next(t for n, t, _ in results if n == "HBN (Rust parser)")
