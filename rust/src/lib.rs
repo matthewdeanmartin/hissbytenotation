@@ -764,3 +764,133 @@ fn hbn_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(loads, m)?)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::loads;
+    use pyo3::prelude::*;
+
+    #[test]
+    fn matches_ast_literal_eval_for_supported_literals() {
+        Python::initialize();
+        Python::attach(|py| {
+            let ast = py.import("ast").unwrap();
+            let literal_eval = ast.getattr("literal_eval").unwrap();
+            let cases = [
+                "42",
+                "-7",
+                "3.14",
+                "'hello'",
+                "b'bytes'",
+                "True",
+                "False",
+                "None",
+                "...",
+                "(1, 2, 3)",
+                "[1, 'two', 3.0]",
+                "{'a': 1, 'b': [2, 3]}",
+                "{'nested': {'deep': (1, 2)}}",
+                "[]",
+                "{}",
+                "()",
+                "(42,)",
+                "(42)",
+            ];
+
+            for case in cases {
+                let rust_value = loads(py, case).unwrap();
+                let python_value = literal_eval.call1((case,)).unwrap();
+                assert!(
+                    rust_value.bind(py).eq(python_value).unwrap(),
+                    "parser result differed from ast.literal_eval for {case}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn parses_numeric_variants_and_large_integers() {
+        Python::initialize();
+        Python::attach(|py| {
+            assert_eq!(loads(py, "0xff").unwrap().bind(py).extract::<i64>().unwrap(), 255);
+            assert_eq!(loads(py, "-0o10").unwrap().bind(py).extract::<i64>().unwrap(), -8);
+            assert_eq!(loads(py, "0b1010_0101").unwrap().bind(py).extract::<i64>().unwrap(), 165);
+            assert_eq!(loads(py, "1_000_000").unwrap().bind(py).extract::<i64>().unwrap(), 1_000_000);
+
+            let float_value = loads(py, "-1.25e2").unwrap().bind(py).extract::<f64>().unwrap();
+            assert_eq!(float_value, -125.0);
+
+            let big_int = "1234567890123456789012345678901234567890";
+            let parsed = loads(py, big_int).unwrap();
+            assert_eq!(
+                parsed.bind(py).str().unwrap().to_string_lossy().as_ref(),
+                big_int
+            );
+        });
+    }
+
+    #[test]
+    fn parses_triple_quoted_strings_and_bytes_escapes() {
+        Python::initialize();
+        Python::attach(|py| {
+            let triple = loads(py, r#"'''hello\nworld'''"#).unwrap();
+            assert_eq!(
+                triple.bind(py).extract::<String>().unwrap(),
+                "hello\nworld"
+            );
+
+            let bytes_value = loads(py, r#"b'\x68\151'"#).unwrap();
+            assert_eq!(bytes_value.bind(py).extract::<Vec<u8>>().unwrap(), b"hi");
+        });
+    }
+
+    #[test]
+    fn parses_frozenset_and_ellipsis_alias() {
+        Python::initialize();
+        Python::attach(|py| {
+            let ellipsis = loads(py, "Ellipsis").unwrap();
+            assert_eq!(
+                ellipsis.bind(py).repr().unwrap().to_string_lossy().as_ref(),
+                "Ellipsis"
+            );
+
+            let frozen = loads(py, "frozenset({3, 1, 2})").unwrap();
+            assert_eq!(
+                frozen
+                    .bind(py)
+                    .get_type()
+                    .name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                "frozenset"
+            );
+
+            let builtins = py.import("builtins").unwrap();
+            let sorted = builtins.getattr("sorted").unwrap();
+            let items: Vec<i64> = sorted.call1((frozen.bind(py),)).unwrap().extract().unwrap();
+            assert_eq!(items, vec![1, 2, 3]);
+        });
+    }
+
+    #[test]
+    fn rejects_invalid_input_with_useful_errors() {
+        Python::initialize();
+        Python::attach(|py| {
+            let cases = [
+                ("'unterminated", "unterminated string"),
+                (r#"b'\xzz'"#, "invalid hex escape in bytes"),
+                ("[1 2]", "expected ',' or ']' in list"),
+                ("1 2", "Trailing content"),
+            ];
+
+            for (case, expected) in cases {
+                let error = loads(py, case).unwrap_err();
+                assert!(
+                    error.to_string().contains(expected),
+                    "expected error containing {expected:?} for {case:?}, got {error}"
+                );
+            }
+        });
+    }
+}

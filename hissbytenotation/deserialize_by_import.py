@@ -4,6 +4,7 @@ Hack to load python source faster.
 
 import importlib.machinery
 import importlib.util
+import sys
 from typing import Any
 
 
@@ -21,10 +22,21 @@ def write_dict_to_file(dict_str: str, file_path: str) -> None:
 
 def reload_module(module_name: str, file_path: str) -> Any:
     """Reload the module using importlib"""
-    # pylint: disable=no-value-for-parameter
-    # pylint: disable=deprecated-method
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+
     loader = importlib.machinery.SourceFileLoader(module_name, file_path)
-    module = loader.load_module()
+    spec = importlib.util.spec_from_loader(module_name, loader)
+    if spec is None:
+        raise ImportError(f"Could not create module spec for {module_name}")
+
+    module = importlib.util.module_from_spec(spec)
+    source = loader.get_source(module_name)
+    if source is None:
+        raise ImportError(f"Could not read source for {module_name}")
+
+    exec(compile(source, file_path, "exec"), module.__dict__)
+    sys.modules[module_name] = module
 
     return module.data
 

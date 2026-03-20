@@ -24,8 +24,12 @@ def dumps(python_object: Any, validate: bool = True) -> str:
     str: A string representation of the Python object.
     """
     representation = repr(python_object)
-    if validate and not ast.literal_eval(representation) == python_object:
-        raise HissByteNotationException("Can't round trip, ast.literal_eval can't read that.")
+    if validate:
+        try:
+            if ast.literal_eval(representation) != python_object:
+                raise HissByteNotationException("Can't round trip, ast.literal_eval can't read that.")
+        except (ValueError, SyntaxError) as e:
+            raise HissByteNotationException("Can't round trip, ast.literal_eval can't read that.") from e
     return representation
 
 

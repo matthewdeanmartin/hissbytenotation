@@ -60,7 +60,7 @@ exclude = '''
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = [
-    "tests",
+    "test",
 ]
 junit_family = "xunit1"
 norecursedirs = ["vendor", "scripts"]
