@@ -1,19 +1,91 @@
-name: Build and Test
+name: CI
 
-on: [ push ]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v6.0.0
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          python-version: '3.14'
-          # cache: 'pipenv' # caching pipenv dependencies
-      - name: Install
+          workspaces: rust
+
+      - name: Cargo fmt
+        run: cargo fmt --check --manifest-path rust/Cargo.toml
+
+      - name: Cargo clippy
+        run: cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
+
+  test:
+    name: Test / ${{ matrix.os }} / py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
+
+      - name: Install dependencies
         run: |
-          pip install uv && pip install pipx && pipx install uv
-      - name: Run make
-        run: uv run make check
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov maturin
+
+      - name: Install hissbytenotation
+        run: pip install -e .
+
+      - name: Build and install Rust extension
+        run: maturin develop --release --manifest-path rust/Cargo.toml
+
+      - name: Run tests
+        run: |
+          pytest test/ -v --cov=hissbytenotation --cov-report=term-missing
+
+  rust-test:
+    name: Rust unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Cargo test
+        run: cargo test --manifest-path rust/Cargo.toml

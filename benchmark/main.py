@@ -1,94 +1,99 @@
-import timeit
+"""
+Benchmark suite for hissbytenotation.
+
+Run with:
+    python -m benchmark
+"""
+
 import pickle
 import json
-import yaml
-from asteval import Interpreter
+import timeit
+
 import hissbytenotation as hbn
 import test.generate as generator
 
-data = generator.generate_test_data(no_bytes=True, no_sets=True, no_elipsis=True)
+# Check optional dependencies
+try:
+    import hbn_rust
 
-aeval = Interpreter(minimal=True)
+    HAS_RUST = True
+except ImportError:
+    HAS_RUST = False
 
+try:
+    import yaml
 
-def benchmark_just_repr():
-    # load
-    repr(data)
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
 
+try:
+    from asteval import Interpreter
 
-def benchmark_asteval():
-    # load
-    repr_string = repr(data)
-    aeval(repr_string)
-
-
-def benchmark_hbn_no_validate_exec():
-    serialized = hbn.dumps(data, validate=False)
-    hbn.loads(serialized, by_exec=True)
-
-
-def benchmark_hbn_no_validate_by_import():
-    serialized = hbn.dumps(data, validate=False)
-    hbn.loads(serialized, by_import=True)
+    HAS_ASTEVAL = True
+except ImportError:
+    HAS_ASTEVAL = False
 
 
-def benchmark_hbn_no_validate_by_eval():
-    serialized = hbn.dumps(data, validate=False)
-    hbn.loads(serialized, by_eval=True)
+def run_benchmarks(count: int = 1000) -> None:
+    data = generator.generate_test_data(no_bytes=True, no_sets=True, no_elipsis=True)
+    serialized_hbn = hbn.dumps(data, validate=False)
+    serialized_json = json.dumps(data)
+    serialized_pickle = pickle.dumps(data)
+
+    results: list[tuple[str, float, str]] = []
+
+    # --- Baselines ---
+    t = timeit.timeit(lambda: pickle.loads(serialized_pickle), number=count)
+    results.append(("Pickle", t, ""))
+
+    t = timeit.timeit(lambda: json.loads(serialized_json), number=count)
+    results.append(("JSON", t, ""))
+
+    # --- HBN methods ---
+    if HAS_RUST:
+        t = timeit.timeit(lambda: hbn.loads(serialized_hbn, by_rust=True), number=count)
+        results.append(("HBN (Rust parser)", t, "safe"))
+
+    t = timeit.timeit(lambda: hbn.loads(serialized_hbn), number=count)
+    results.append(("HBN (ast.literal_eval)", t, "safe"))
+
+    t = timeit.timeit(lambda: hbn.loads(serialized_hbn, by_eval=True), number=count)
+    results.append(("HBN (eval)", t, "unsafe"))
+
+    t = timeit.timeit(lambda: hbn.loads(serialized_hbn, by_exec=True), number=count)
+    results.append(("HBN (exec)", t, "unsafe"))
+
+    t = timeit.timeit(lambda: hbn.loads(serialized_hbn, by_import=True), number=count)
+    results.append(("HBN (import)", t, "unsafe"))
+
+    if HAS_ASTEVAL:
+        aeval = Interpreter(minimal=True)
+        t = timeit.timeit(lambda: aeval(serialized_hbn), number=count)
+        results.append(("HBN (asteval)", t, "safe"))
+
+    # --- Serialization-only ---
+    t = timeit.timeit(lambda: repr(data), number=count)
+    results.append(("repr() only", t, "serialize"))
+
+    # --- Print ---
+    print(f"\n## Deserialization benchmark — {count} iterations\n")
+    print(f"{'Method':<30} {'Time':>10} {'Notes':>10}")
+    print("-" * 55)
+
+    ast_time = None
+    for name, time_s, note in results:
+        if name == "HBN (ast.literal_eval)":
+            ast_time = time_s
+        print(f"{name:<30} {time_s:>9.3f}s {note:>10}")
+
+    if ast_time and HAS_RUST:
+        rust_time = next(t for n, t, _ in results if n == "HBN (Rust parser)")
+        print(f"\nRust parser is {ast_time / rust_time:.1f}x faster than ast.literal_eval")
+
+    if not HAS_RUST:
+        print("\n(Rust parser not installed — cd rust && maturin develop --release)")
 
 
-def benchmark_hbn_no_validate():
-    serialized = hbn.dumps(data, validate=False)
-    hbn.loads(serialized)
-
-
-def benchmark_hbn_validate():
-    serialized = hbn.dumps(data, validate=True)
-    hbn.loads(serialized)
-
-
-def benchmark_pickle():
-    serialized = pickle.dumps(data)
-    pickle.loads(serialized)
-
-
-def benchmark_json():
-    serialized = json.dumps(data)
-    json.loads(serialized)
-
-
-def benchmark_yaml():
-    # try:
-    serialized = yaml.dump(data, default_flow_style=False)
-    # except Exception as E:
-    #     raise E
-
-    yaml.load(serialized, Loader=yaml.FullLoader)
-
-
-count = 1000
-
-pickle_time = timeit.timeit(benchmark_pickle, number=count)
-json_time = timeit.timeit(benchmark_json, number=count)
-# can't represent a lot?
-# yaml_time = timeit.timeit(benchmark_yaml, number=count)
-hbn_time_no_validate = timeit.timeit(benchmark_hbn_no_validate, number=count)
-hbn_time_validate = timeit.timeit(benchmark_hbn_validate, number=count)
-hbn_time_by_eval = timeit.timeit(benchmark_hbn_no_validate_by_eval, number=count)
-hbn_time_exec = timeit.timeit(benchmark_hbn_no_validate_exec, number=count)
-hbn_time_by_import = timeit.timeit(benchmark_hbn_no_validate_by_import, number=count)
-
-repr_time = timeit.timeit(benchmark_just_repr, number=count)
-asteval_time = timeit.timeit(benchmark_asteval, number=count)
-
-print(f"## Serialization and deserialization times for {count} dumps/loads")
-print(f"Oneway repr {repr_time:.2f} seconds")
-print(f"Pickle:  {pickle_time:.2f} seconds")
-print(f"JSON: {json_time:.2f} seconds")
-print(f"asteval (repr + Interpreter()):  {asteval_time:.2f} seconds")
-# print(f"YAML serialization and deserialization time: {yaml_time:.2f} seconds")
-print(f"HBN (repr + ast_eval, no validation): {hbn_time_no_validate:.2f} seconds")
-print(f"HBN (repr + ast_eval + validation): {hbn_time_validate:.2f} seconds")
-print(f"HBN (repr + eval): {hbn_time_by_eval:.2f} seconds")
-print(f"HBN (repr + exec): {hbn_time_exec:.2f} seconds")
-print(f"HBN (repr + by import): {hbn_time_by_import:.2f} seconds")
+if __name__ == "__main__":
+    run_benchmarks()

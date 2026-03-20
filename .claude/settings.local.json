@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rustc --version)",
+      "Bash(pip install:*)",
+      "Bash(maturin develop:*)",
+      "Bash(cargo update:*)",
+      "Bash(python -c \":*)",
+      "Bash(python -m pytest test/test_rust.py -v)",
+      "Bash(python -m pytest test/ -v)",
+      "Bash(python -m benchmark -n 500)"
+    ]
+  }
+}

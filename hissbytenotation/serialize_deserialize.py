@@ -30,17 +30,30 @@ def dumps(python_object: Any, validate: bool = True) -> str:
 
 
 def loads(
-    source_code: str, by_eval: bool = False, by_import: bool = False, by_exec: bool = False
+    source_code: str,
+    by_eval: bool = False,
+    by_import: bool = False,
+    by_exec: bool = False,
+    by_rust: bool = False,
 ) -> RecursiveSerializable:
     """
     Parse a string containing a Python literal expression and return the original Python object.
 
     Args:
     source_code (str): A string containing a Python literal expression.
+    by_rust (bool): Use the Rust-accelerated parser (requires hbn_rust to be installed).
 
     Returns:
     The original Python object.
     """
+    if by_rust:
+        try:
+            import hbn_rust  # type: ignore[import-untyped]
+        except ImportError as e:
+            raise ImportError(
+                "hbn_rust is not installed. Install it with: cd rust && maturin develop --release"
+            ) from e
+        return hbn_rust.loads(source_code)
     if by_import:
         return loads_via_import(source_code)
     if by_exec:

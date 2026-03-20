@@ -45,6 +45,11 @@ mypy:
 	@echo "Security checks"
 	$(VENV)  mypy hissbytenotation
 
+.PHONY: benchmark
+benchmark:
+	@echo "Running benchmarks"
+	$(VENV) python -m benchmark
+
 check: test pylint bandit pre-commit mypy
 
 .PHONY: publish

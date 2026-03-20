@@ -11,6 +11,8 @@ serializer/deserializers such as json, pickle, pyyaml, etc.
 `ast.literal_eval` is safer than `eval` but the python docs still imply that there are malicious payloads. I'm not
 sure if they are the same problems that could affect json or other formats.
 
+The Rust parser (`by_rust=True`) is safe — it only parses literal syntax and never executes arbitrary code.
+
 ## Usage
 
 ```python
@@ -28,6 +30,20 @@ print(rehydrated)
 # {'mammal': 'cat', 'reptile': ['snake', 'lizard'], 'version': 1}
 ```
 
+### Rust-accelerated parsing
+
+Install the `hbn_rust` package for a ~14x speedup over `ast.literal_eval`:
+
+```bash
+pip install hbn-rust
+# or build from source:
+cd rust && maturin develop --release
+```
+
+```python
+fast = hbn.loads(data_as_string, by_rust=True)
+```
+
 ## How it works
 
 Serialization is done by calling repr, checking if ast.literal_eval can read it. Repr can be called on more data
@@ -35,20 +51,32 @@ structures than ast.literal_eval can handle.
 
 Because ast.literal_eval is so slow, there are other options for deserialization:
 
-- default: ast.literal_eval with validation enabled. Very slow, very safe.
-- eval. Slow, only for trusted data.
-- exec. Slow, only for trusted data.
-- import. Two times faster than exec, only for trusted data.
+- **Rust parser** (`by_rust=True`): ~14x faster than ast.literal_eval. Safe — no code execution. Requires `hbn_rust`.
+- **default**: ast.literal_eval with validation enabled. Very slow, very safe.
+- **eval** (`by_eval=True`): Slow, only for trusted data.
+- **exec** (`by_exec=True`): Slow, only for trusted data.
+- **import** (`by_import=True`): Two times faster than exec, only for trusted data.
 
-## Serialization and deserialization times for 10,000 dumps/loads
+## Deserialization benchmark — 1,000 iterations
 
-    Pickle:  0.89 seconds
-    JSON: 2.00 seconds
-    HBN (no validation): 20.80 seconds
-    HBN (validation): 40.57 seconds
-    HBN (unsafe): 15.95 seconds
-    HBN (exec): 18.08 seconds
-    HBN (by import): 12.26 seconds
+| Method                 |    Time | Notes  |
+|------------------------|--------:|--------|
+| Pickle                 |  0.018s |        |
+| JSON                   |  0.042s |        |
+| **HBN (Rust parser)**  |  0.086s | safe   |
+| HBN (eval)             |  0.930s | unsafe |
+| HBN (ast.literal_eval) |  1.177s | safe   |
+| HBN (exec)             |  1.200s | unsafe |
+| HBN (import)           |  1.500s | unsafe |
+
+**Rust parser is ~14x faster than ast.literal_eval** and the fastest safe option.
+
+Run the benchmark yourself:
+
+```bash
+python -m benchmark
+python -m benchmark -n 5000  # more iterations
+```
 
 ## Prior art
 
