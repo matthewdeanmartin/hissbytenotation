@@ -1,10 +1,18 @@
 # Hiss Byte Notation
 
-Library to make it easy to use python literal syntax as a data format
+Library to make it easy to use python literal syntax as a data format. No JavaScript and fast.
 
 Have you seen people try to print a dict and then use the JSON library to parse the output? This library is some
-helper function for that scenario. It is a small wrapper around ast.literal_eval and will have a API similar to other
-serializer/deserializers such as json, pickle, pyyaml, etc.
+helper function for that scenario. It has an API similar to other serialization libraries with dumps, loads and so on.
+
+It is a small wrapper all the ways that python has to convert python literals to live python
+
+- ast.literal_eval
+- import
+- etc.
+
+However, I don't recommend using any of those except Pickle because performance is so bad. Instead use hsbn with the
+rust speed ups which are now the default.
 
 ## Safety
 
