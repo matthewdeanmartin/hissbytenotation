@@ -40,7 +40,7 @@ print(rehydrated)
 
 ## CLI
 
-Phase 3 ships a Bash-first CLI with the `hbn` command:
+Phase 5 ships a Bash-first CLI with the `hbn` command:
 
 ```bash
 uv run hbn dump --arg "{'mammal': 'cat', 'version': 1}"
@@ -53,6 +53,9 @@ uv run hbn q --glom "{'emails': ('users', ['email'])}" users.hbn
 uv run hbn set users.0.role --value "'admin'" users.hbn
 uv run hbn merge left.hbn right.hbn
 uv run hbn merge --strategy append-lists left.hbn right.hbn
+uv run hbn diff left.hbn right.hbn
+uv run hbn doctor --to json --pretty
+uv run hbn repl users.hbn
 ```
 
 Supported core formats:
@@ -114,12 +117,81 @@ uv run hbn set config.port --value 6432 --in-place settings.hbn
 uv run hbn append users --value "{'email': 'new@example.com'}" --backup .bak users.hbn
 ```
 
+Phase 4 discoverability and interactive workflows:
+
+- `repl`
+- `doctor`
+- friendly aliases such as `show`, `format`, `delete`, and `count`
+- richer help and examples topics via `hbn help TOPIC` and `hbn examples TOPIC`
+- shell completion scripts for Bash, Zsh, Fish, and PowerShell
+
+Examples:
+
+```bash
+uv run hbn show --arg "{'a': 1}"
+uv run hbn delete users.0.role users.hbn
+uv run hbn count --arg "[1, 2, 3]"
+uv run hbn doctor --compact
+uv run hbn completion powershell
+uv run hbn repl users.hbn
+```
+
+Inside the REPL:
+
+```text
+load {'users': [{'email': 'a@example.com'}]}
+get users.0.email --raw
+set users.0.role --value "'admin'"
+merge --value "{'users': [{'email': 'b@example.com'}]}" --strategy append-lists
+write session.json --to json --pretty
+```
+
+The `doctor` command reports optional capabilities and install hints for:
+
+- formatter support via `black`
+- diff helper support, preferring `git diff --no-index` when available
+- optional `glom` integration
+- optional `hbn_rust` acceleration
+- `uv` and `git` availability on `PATH`
+
+Install shell completions by evaluating or sourcing the generated script for your shell:
+
+```bash
+uv run hbn completion bash
+uv run hbn completion zsh
+uv run hbn completion fish
+uv run hbn completion powershell
+```
+
 For formatter support, install the optional extra and use `hbn fmt`:
 
 ```bash
 uv sync --extra fmt
 uv run hbn fmt --arg "{'b':2,'a':1}"
 ```
+
+`hbn fmt` prefers shelling out to the `black` executable when it is available and falls back to the Python package API when it is installed without the command on `PATH`.
+
+Phase 5 optional extras and helpers:
+
+- `fmt` for formatter integration
+- `diff` for canonicalized text diffs
+
+Examples:
+
+```bash
+uv run hbn diff left.hbn right.hbn
+uv run hbn diff --to json left.hbn right.hbn
+uv run hbn diff --tool builtin --left-arg "{'a': 1}" --right-arg "{'a': 2}"
+uv run hbn fmt --arg "{'b':2,'a':1}"
+```
+
+The `diff` command:
+
+- canonicalizes both inputs as HBN or JSON
+- prefers `git diff --no-index` when `git` is available
+- falls back to a builtin unified diff renderer otherwise
+- returns `0` for no diff and `1` when differences are found
 
 ### Rust-accelerated parsing
 

@@ -6,6 +6,7 @@ import argparse
 import importlib.metadata
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -16,6 +17,8 @@ from hissbytenotation.cli.codecs import (
     normalize_format_name,
     parse_value,
 )
+from hissbytenotation.cli.diff_ops import CANONICAL_DIFF_FORMATS, DIFF_TOOLS, canonicalize_value, diff_texts
+from hissbytenotation.cli.doctor import collect_doctor_report
 from hissbytenotation.cli.errors import (
     FALSEY_RESULT,
     INTERNAL_ERROR,
@@ -38,12 +41,24 @@ from hissbytenotation.cli.merge_ops import (
     merge_values,
 )
 from hissbytenotation.cli.presenters import apply_default, render_output
+from hissbytenotation.cli.repl import run_repl
 
 black: Any = None
 try:
     import black
 except ImportError:  # pragma: no cover - exercised when the optional formatter is missing
     black = None
+
+COMMAND_ALIASES = {
+    "dump": ["show"],
+    "fmt": ["format"],
+    "q": ["query"],
+    "del": ["delete", "remove"],
+    "len": ["count"],
+}
+
+HELP_TOPICS = ("shell", "glom", "merge", "diff", "repl", "doctor", "aliases", "formats", "topics")
+EXAMPLE_TOPICS = ("general", "bash", "glom", "merge", "diff", "repl", "doctor", "all")
 
 TOPIC_HELP = {
     "shell": """Shell output helpers:
@@ -82,12 +97,69 @@ TOPIC_HELP = {
   --atomic                            write through a temp file then replace
   --check                             validate without printing or writing
 """,
+    "diff": """Diff helper:
+  diff LEFT RIGHT                      canonicalize two inputs and diff them
+  diff --to json                       diff canonical JSON instead of HBN
+  diff --tool git                      require git diff --no-index
+  diff --tool builtin                  force the builtin unified diff renderer
+  diff --context 5                     adjust unified diff context lines
+  Exit codes:
+    0  inputs are equivalent after canonicalization
+    1  diff found
+""",
+    "repl": """Interactive REPL:
+  repl [file]
+  repl --arg "{'users': []}"
+  Inside the REPL:
+    load VALUE
+    read PATH [--from FMT]
+    show | type | keys | values | items | len
+    get PATH | q PATH | q --glom SPEC
+    set PATH --value VALUE
+    del PATH
+    append PATH --value VALUE
+    insert PATH --index N --value VALUE
+    merge --value VALUE | merge --file PATH
+    write PATH [--to FMT]
+    doctor
+    reset
+    quit
+""",
+    "doctor": """Doctor checks:
+  doctor                            show a structured capability report
+  doctor --to json --pretty         render the report as JSON
+  The report checks optional runtime features such as:
+    - black / fmt support
+    - diff helper support
+    - glom integration
+    - hbn_rust acceleration
+    - uv and git on PATH
+""",
+    "aliases": """Command aliases:
+  show      alias for dump
+  format    alias for fmt
+  query     alias for q
+  delete    alias for del
+  remove    alias for del
+  count     alias for len
+""",
     "formats": """Supported formats:
   hbn   native Hiss Byte Notation / Python literal syntax
   json  stdlib JSON input and output
   toml  stdlib TOML input only
   xml   basic XML mapping using @attrs and #text
   bmn   Bash Map Notation for flat dicts and scalar arrays
+""",
+    "topics": """Help topics:
+  shell
+  glom
+  merge
+  diff
+  repl
+  doctor
+  aliases
+  formats
+  topics
 """,
 }
 
@@ -98,7 +170,10 @@ EXAMPLES = {
   hbn type data.hbn
   hbn keys --lines data.hbn
   hbn fmt config.hbn
+  hbn diff left.hbn right.hbn
   hbn get users.0.email data.hbn --raw
+  hbn repl data.hbn
+  hbn doctor --to json --pretty
 """,
     "bash": """Bash examples:
   hbn values --lines data.hbn
@@ -122,16 +197,43 @@ EXAMPLES = {
   hbn set config.port --value 5432 --in-place settings.hbn
   hbn append users --value "{'email': 'new@example.com'}" --backup .bak users.hbn
 """,
+    "diff": """Diff examples:
+  hbn diff left.hbn right.hbn
+  hbn diff --to json left.hbn right.hbn
+  hbn diff --tool builtin --left-arg "{'a': 1}" --right-arg "{'a': 2}"
+""",
+    "repl": """REPL examples:
+  hbn repl
+  hbn repl session.hbn
+  hbn repl --arg "{'users': [{'email': 'a@example.com'}]}"
+
+  # inside the REPL
+  load {'users': [{'email': 'a@example.com'}]}
+  get users.0.email --raw
+  set users.0.role --value "'admin'"
+  merge --value "{'users': [{'email': 'b@example.com'}]}" --strategy append-lists
+  write users.json --to json --pretty
+""",
+    "doctor": """Doctor examples:
+  hbn doctor
+  hbn doctor --to json --pretty
+  hbn doctor --compact
+""",
 }
 
 COMMAND_NAMES = {
     "dump",
+    "show",
     "fmt",
+    "format",
+    "diff",
     "q",
     "query",
     "get",
     "set",
     "del",
+    "delete",
+    "remove",
     "append",
     "insert",
     "merge",
@@ -141,6 +243,9 @@ COMMAND_NAMES = {
     "values",
     "items",
     "len",
+    "count",
+    "repl",
+    "doctor",
     "help",
     "examples",
     "completion",
@@ -183,12 +288,42 @@ def build_parser() -> argparse.ArgumentParser:
     mutation_parent = build_mutation_parent_parser()
     merge_parent = build_merge_parent_parser()
 
-    dump_parser = subparsers.add_parser("dump", parents=[data_parent, output_parent], help="Render input as HBN.")
+    dump_parser = subparsers.add_parser(
+        "dump", aliases=COMMAND_ALIASES["dump"], parents=[data_parent, output_parent], help="Render input as HBN."
+    )
     dump_parser.set_defaults(handler=handle_dump, to_format="hbn")
 
-    fmt_parser = subparsers.add_parser("fmt", parents=[data_parent], help="Format HBN input using black.")
+    fmt_parser = subparsers.add_parser(
+        "fmt", aliases=COMMAND_ALIASES["fmt"], parents=[data_parent], help="Format HBN input using black."
+    )
     fmt_parser.add_argument("-o", "--output", dest="output_path", help="Write formatted output to a file.")
     fmt_parser.set_defaults(handler=handle_fmt)
+
+    diff_parser = subparsers.add_parser(
+        "diff",
+        help="Canonicalize two inputs and show a unified diff.",
+    )
+    diff_parser.add_argument("left_source", nargs="?", help="Left input file path.")
+    diff_parser.add_argument("right_source", nargs="?", help="Right input file path.")
+    diff_parser.add_argument("--left-file", dest="left_file", help="Explicit left input file path.")
+    diff_parser.add_argument("--right-file", dest="right_file", help="Explicit right input file path.")
+    diff_parser.add_argument("--left-arg", dest="left_arg", help="Left input literal text.")
+    diff_parser.add_argument("--right-arg", dest="right_arg", help="Right input literal text.")
+    diff_parser.add_argument("--left-stdin", action="store_true", help="Read the left input from stdin.")
+    diff_parser.add_argument("--left-from", dest="left_format", help="Format for the left input.")
+    diff_parser.add_argument("--right-from", dest="right_format", help="Format for the right input.")
+    diff_parser.add_argument("--to", dest="to_format", choices=CANONICAL_DIFF_FORMATS, default="hbn")
+    diff_parser.add_argument("--tool", choices=DIFF_TOOLS, default="auto", help="Diff implementation to use.")
+    diff_parser.add_argument("--context", type=int, default=3, help="Unified diff context lines.")
+    diff_parser.add_argument("--compact", action="store_true", help="Emit compact canonical text before diffing.")
+    diff_parser.add_argument("--pretty", action="store_true", help="Pretty-print canonical text before diffing.")
+    diff_parser.add_argument("--indent", type=int, help="Indentation width for canonical rendering.")
+    diff_parser.add_argument("--sort-keys", action="store_true", help="Sort mapping keys before diffing.")
+    diff_parser.add_argument("--strict", action="store_true", help="Refuse lossy canonicalization conversions.")
+    diff_parser.add_argument("--label-left", default="left", help="Label to use for the left side of the diff.")
+    diff_parser.add_argument("--label-right", default="right", help="Label to use for the right side of the diff.")
+    diff_parser.add_argument("--debug", action="store_true", help="Raise exceptions with tracebacks.")
+    diff_parser.set_defaults(handler=handle_diff, pretty=True, sort_keys=True)
 
     convert_parser = subparsers.add_parser(
         "convert",
@@ -200,7 +335,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     query_parser = subparsers.add_parser(
         "q",
-        aliases=["query"],
+        aliases=COMMAND_ALIASES["q"],
         parents=[glom_data_parent, output_parent, glom_parent],
         help="Query nested data with glom paths or specs.",
     )
@@ -229,6 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     del_parser = subparsers.add_parser(
         "del",
+        aliases=COMMAND_ALIASES["del"],
         parents=[glom_data_parent, output_parent, mutation_parent],
         help="Delete a nested value using a simple path.",
     )
@@ -281,8 +417,25 @@ def build_parser() -> argparse.ArgumentParser:
         ("items", handle_items, "Show dict items."),
         ("len", handle_len, "Show collection length."),
     ):
-        command_parser = subparsers.add_parser(command_name, parents=[data_parent, output_parent], help=help_text)
+        aliases = COMMAND_ALIASES.get(command_name, [])
+        command_parser = subparsers.add_parser(
+            command_name, aliases=aliases, parents=[data_parent, output_parent], help=help_text
+        )
         command_parser.set_defaults(handler=handler)
+
+    repl_parser = subparsers.add_parser("repl", help="Start an interactive REPL.")
+    repl_source_group = repl_parser.add_mutually_exclusive_group()
+    repl_source_group.add_argument("--file", dest="input_path", help="Load an initial value from a file.")
+    repl_source_group.add_argument("--arg", dest="input_text", help="Load an initial value from a literal string.")
+    repl_parser.add_argument("source_path", nargs="?", help="Optional initial input file path.")
+    repl_parser.add_argument("--from", dest="from_format", help="Format for the initial input.")
+    repl_parser.add_argument("--prompt", default="hbn> ", help="Prompt string to use in interactive mode.")
+    repl_parser.add_argument("--debug", action="store_true", help="Raise exceptions with tracebacks.")
+    repl_parser.set_defaults(handler=handle_repl)
+
+    doctor_parser = subparsers.add_parser("doctor", parents=[output_parent], help="Inspect optional capabilities.")
+    doctor_parser.add_argument("--to", dest="to_format", help="Target output format.")
+    doctor_parser.set_defaults(handler=handle_doctor, pretty=True)
 
     help_parser = subparsers.add_parser("help", help="Show help for a topic.")
     help_parser.add_argument("topic", nargs="?", help="Topic such as shell or formats.")
@@ -293,7 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
     examples_parser.set_defaults(handler=handle_examples)
 
     completion_parser = subparsers.add_parser("completion", help="Emit shell completion scripts.")
-    completion_parser.add_argument("shell", choices=["bash", "zsh", "fish"], help="Shell to target.")
+    completion_parser.add_argument("shell", choices=["bash", "zsh", "fish", "powershell"], help="Shell to target.")
     completion_parser.set_defaults(handler=handle_completion)
 
     version_parser = subparsers.add_parser("version", help="Show the installed version.")
@@ -402,6 +555,45 @@ def handle_convert(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     args.to_format = normalize_format_name(args.to_format, output=True)
     value = load_input_value(args)
     return emit_result(value, args)
+
+
+def handle_diff(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Canonicalize two inputs and diff them."""
+    left_value, left_path = load_merge_input(args, side="left")
+    right_value, right_path = load_merge_input(args, side="right")
+    output_format = normalize_format_name(args.to_format, output=True)
+    left_text = canonicalize_value(
+        left_value,
+        output_format=output_format,
+        pretty=args.pretty,
+        compact=args.compact,
+        sort_keys=args.sort_keys,
+        indent=args.indent,
+        strict=args.strict,
+    )
+    right_text = canonicalize_value(
+        right_value,
+        output_format=output_format,
+        pretty=args.pretty,
+        compact=args.compact,
+        sort_keys=args.sort_keys,
+        indent=args.indent,
+        strict=args.strict,
+    )
+    left_label = left_path or args.label_left
+    right_label = right_path or args.label_right
+    exit_code, diff_output = diff_texts(
+        left_text,
+        right_text,
+        left_label=left_label,
+        right_label=right_label,
+        tool=args.tool,
+        context=args.context,
+        output_format=output_format,
+    )
+    if diff_output:
+        sys.stdout.write(diff_output if diff_output.endswith("\n") else f"{diff_output}\n")
+    return exit_code
 
 
 def handle_query(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
@@ -522,6 +714,19 @@ def handle_fmt(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> in
     return write_output(formatted_text, args)
 
 
+def handle_repl(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Start the interactive REPL."""
+    initial_value, initial_path = load_repl_initial_value(args)
+    return run_repl(initial_value=initial_value, initial_path=initial_path, prompt=args.prompt)
+
+
+def handle_doctor(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Show a structured capability report."""
+    if getattr(args, "to_format", None):
+        args.to_format = normalize_format_name(args.to_format, output=True)
+    return emit_result(collect_doctor_report(), args)
+
+
 def handle_help(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Show general or topical help."""
     if not args.topic:
@@ -546,6 +751,12 @@ def handle_help(args: argparse.Namespace, parser: argparse.ArgumentParser) -> in
 def handle_examples(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Show canned usage examples."""
     topic = args.topic.lower()
+    if topic == "all":
+        for example_topic in EXAMPLE_TOPICS:
+            if example_topic == "all":
+                continue
+            print(EXAMPLES[example_topic], end="" if example_topic == "doctor" else "\n")
+        return 0
     if topic not in EXAMPLES:
         raise InputParseError(f"Unknown examples topic: {args.topic}")
     print(EXAMPLES[topic], end="")
@@ -554,24 +765,159 @@ def handle_examples(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
 
 def handle_completion(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Emit a minimal shell completion script."""
+    commands = sorted(COMMAND_NAMES)
+    help_topics = list(HELP_TOPICS)
+    example_topics = list(EXAMPLE_TOPICS)
+    shells = ["bash", "zsh", "fish", "powershell"]
     scripts = {
-        "bash": """_hbn_complete() {
-    local commands=\"dump fmt q query get set del append insert merge convert type keys values items len help examples completion version\"
-    COMPREPLY=( $(compgen -W \"$commands\" -- \"${COMP_WORDS[COMP_CWORD]}\") )
-}
-complete -F _hbn_complete hbn hissbytenotation
-""",
-        "zsh": """#compdef hbn hissbytenotation
-local -a commands
-commands=(dump fmt q query get set del append insert merge convert type keys values items len help examples completion version)
-_describe 'command' commands
-""",
-        "fish": """complete -c hbn -f -a "dump fmt q query get set del append insert merge convert type keys values items len help examples completion version"
-complete -c hissbytenotation -f -a "dump fmt q query get set del append insert merge convert type keys values items len help examples completion version"
-""",
+        "bash": build_bash_completion(commands, help_topics, example_topics, shells),
+        "zsh": build_zsh_completion(commands, help_topics, example_topics, shells),
+        "fish": build_fish_completion(commands, help_topics, example_topics, shells),
+        "powershell": build_powershell_completion(commands, help_topics, example_topics, shells),
     }
     print(scripts[args.shell], end="")
     return 0
+
+
+def build_bash_completion(
+    commands: list[str], help_topics: list[str], example_topics: list[str], shells: list[str]
+) -> str:
+    """Build a Bash completion script."""
+    commands_text = " ".join(commands)
+    help_topics_text = " ".join(help_topics)
+    example_topics_text = " ".join(example_topics)
+    shells_text = " ".join(shells)
+    return f"""_hbn_complete() {{
+    local current commands help_topics example_topics shells
+    current="${{COMP_WORDS[COMP_CWORD]}}"
+    commands="{commands_text}"
+    help_topics="{help_topics_text}"
+    example_topics="{example_topics_text}"
+    shells="{shells_text}"
+    if [[ ${{COMP_CWORD}} -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "$commands" -- "$current") )
+        return 0
+    fi
+    case "${{COMP_WORDS[1]}}" in
+        help)
+            COMPREPLY=( $(compgen -W "$help_topics $commands" -- "$current") )
+            ;;
+        examples)
+            COMPREPLY=( $(compgen -W "$example_topics" -- "$current") )
+            ;;
+        completion)
+            COMPREPLY=( $(compgen -W "$shells" -- "$current") )
+            ;;
+        *)
+            COMPREPLY=( $(compgen -W "$commands" -- "$current") )
+            ;;
+    esac
+}}
+complete -F _hbn_complete hbn hissbytenotation
+"""
+
+
+def build_zsh_completion(
+    commands: list[str], help_topics: list[str], example_topics: list[str], shells: list[str]
+) -> str:
+    """Build a Zsh completion script."""
+    command_items = " ".join(f'"{command}"' for command in commands)
+    help_topic_items = " ".join(f'"{topic}"' for topic in help_topics)
+    example_topic_items = " ".join(f'"{topic}"' for topic in example_topics)
+    shell_items = " ".join(f'"{shell}"' for shell in shells)
+    return f"""#compdef hbn hissbytenotation
+local -a commands
+commands=({command_items})
+local -a help_topics
+help_topics=({help_topic_items})
+local -a example_topics
+example_topics=({example_topic_items})
+local -a shells
+shells=({shell_items})
+
+if (( CURRENT == 2 )); then
+  _describe 'command' commands
+  return
+fi
+
+case "${{words[2]}}" in
+  help)
+    _describe 'help topic' help_topics
+    ;;
+  examples)
+    _describe 'example topic' example_topics
+    ;;
+  completion)
+    _describe 'shell' shells
+    ;;
+  *)
+    _describe 'command' commands
+    ;;
+esac
+"""
+
+
+def build_fish_completion(
+    commands: list[str], help_topics: list[str], example_topics: list[str], shells: list[str]
+) -> str:
+    """Build a Fish completion script."""
+    commands_text = " ".join(commands)
+    help_topics_text = " ".join(help_topics)
+    example_topics_text = " ".join(example_topics)
+    shells_text = " ".join(shells)
+    return f"""set -l hbn_commands {commands_text}
+set -l hbn_help_topics {help_topics_text}
+set -l hbn_example_topics {example_topics_text}
+set -l hbn_shells {shells_text}
+
+complete -c hbn -n '__fish_use_subcommand' -f -a "$hbn_commands"
+complete -c hissbytenotation -n '__fish_use_subcommand' -f -a "$hbn_commands"
+complete -c hbn -n '__fish_seen_subcommand_from help' -f -a "$hbn_help_topics $hbn_commands"
+complete -c hissbytenotation -n '__fish_seen_subcommand_from help' -f -a "$hbn_help_topics $hbn_commands"
+complete -c hbn -n '__fish_seen_subcommand_from examples' -f -a "$hbn_example_topics"
+complete -c hissbytenotation -n '__fish_seen_subcommand_from examples' -f -a "$hbn_example_topics"
+complete -c hbn -n '__fish_seen_subcommand_from completion' -f -a "$hbn_shells"
+complete -c hissbytenotation -n '__fish_seen_subcommand_from completion' -f -a "$hbn_shells"
+"""
+
+
+def build_powershell_completion(
+    commands: list[str], help_topics: list[str], example_topics: list[str], shells: list[str]
+) -> str:
+    """Build a PowerShell completion script."""
+    command_items = ", ".join(f"'{command}'" for command in commands)
+    help_topic_items = ", ".join(f"'{topic}'" for topic in help_topics)
+    example_topic_items = ", ".join(f"'{topic}'" for topic in example_topics)
+    shell_items = ", ".join(f"'{shell}'" for shell in shells)
+    return f"""Register-ArgumentCompleter -CommandName hbn, hissbytenotation -ScriptBlock {{
+    param($wordToComplete, $commandAst, $cursorPosition)
+
+    $commands = @({command_items})
+    $helpTopics = @({help_topic_items})
+    $exampleTopics = @({example_topic_items})
+    $shells = @({shell_items})
+    $elements = $commandAst.CommandElements | ForEach-Object {{ $_.Extent.Text }}
+
+    if ($elements.Count -le 2) {{
+        $commands | Where-Object {{ $_ -like "$wordToComplete*" }} | ForEach-Object {{
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        }}
+        return
+    }}
+
+    $subcommand = $elements[1]
+    $choices = switch ($subcommand) {{
+        'help' {{ $helpTopics + $commands }}
+        'examples' {{ $exampleTopics }}
+        'completion' {{ $shells }}
+        default {{ $commands }}
+    }}
+
+    $choices | Where-Object {{ $_ -like "$wordToComplete*" }} | ForEach-Object {{
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+    }}
+}}
+"""
 
 
 def handle_version(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
@@ -636,6 +982,28 @@ def load_merge_input(args: argparse.Namespace, *, side: str) -> tuple[Any, str |
         raise FileIOCliError(f"Could not read stdin: {exc}") from exc
     format_hint = from_format or "hbn"
     return parse_value(text, format_hint, strict=args.strict), None
+
+
+def load_repl_initial_value(args: argparse.Namespace) -> tuple[Any | None, str | None]:
+    """Load an optional initial REPL value without consuming command stdin implicitly."""
+    source_path = getattr(args, "source_path", None)
+    input_path = getattr(args, "input_path", None) or source_path
+    input_text = getattr(args, "input_text", None)
+    if getattr(args, "input_path", None) and source_path and args.input_path != source_path:
+        raise InputParseError("Use only one initial REPL file path source.")
+    if input_path and input_text is not None:
+        raise InputParseError("Use either a file path or --arg for REPL startup input, but not both.")
+    if input_path is None and input_text is None:
+        return None, None
+    from_format = getattr(args, "from_format", None)
+    if input_path is not None:
+        try:
+            text = Path(input_path).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise FileIOCliError(f"Could not read {input_path}: {exc}") from exc
+        return parse_value(text, from_format or infer_format_from_path(input_path, output=False)), input_path
+    assert input_text is not None
+    return parse_value(input_text, from_format or "hbn"), None
 
 
 def load_input_text(args: argparse.Namespace) -> tuple[str, str | None]:
@@ -760,13 +1128,13 @@ def write_in_place_result(value: Any, args: argparse.Namespace, *, input_path: s
 
 def emit_result(value: Any, args: argparse.Namespace) -> int:
     """Apply defaults, output rendering, and exit-status handling."""
-    value = apply_default(value, args.default)
-    if args.exit_status and not value:
+    value = apply_default(value, getattr(args, "default", None))
+    if getattr(args, "exit_status", False) and not value:
         return FALSEY_RESULT
-    if args.quiet:
+    if getattr(args, "quiet", False):
         return 0
     output_text = render_output(value, args)
-    if output_text and not args.nul and not output_text.endswith("\0"):
+    if output_text and not getattr(args, "nul", False) and not output_text.endswith("\0"):
         output_text = f"{output_text}\n"
     return write_output(output_text, args)
 
@@ -795,9 +1163,29 @@ def type_name_for_value(value: Any) -> str:
 
 def format_hbn_text(source_text: str) -> str:
     """Format HBN text using black if available."""
+    black_path = shutil.which("black")
+    if black_path:
+        return format_hbn_text_with_black_command(source_text, black_path)
     if black is None:
         raise ExternalToolError("Formatting requires black. Install the fmt extra or make sure black is available.")
     try:
         return black.format_str(source_text, mode=black.FileMode())
     except black.InvalidInput as exc:
         raise InputParseError(f"Could not format input as HBN: {exc}") from exc
+
+
+def format_hbn_text_with_black_command(source_text: str, black_path: str) -> str:
+    """Format HBN text by shelling out to the black executable."""
+    with tempfile.TemporaryDirectory(prefix="hbn-fmt-") as temporary_dir_name:
+        temporary_path = Path(temporary_dir_name) / "input.py"
+        temporary_path.write_text(source_text, encoding="utf-8")
+        completed = subprocess.run(
+            [black_path, "--quiet", str(temporary_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            stderr_text = completed.stderr.strip() or completed.stdout.strip() or "black failed."
+            raise InputParseError(f"Could not format input as HBN: {stderr_text}")
+        return temporary_path.read_text(encoding="utf-8")
