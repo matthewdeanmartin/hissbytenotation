@@ -40,7 +40,7 @@ print(rehydrated)
 
 ## CLI
 
-Phase 1 ships a Bash-first CLI with the `hbn` command:
+Phase 2 ships a Bash-first CLI with the `hbn` command:
 
 ```bash
 uv run hbn dump --arg "{'mammal': 'cat', 'version': 1}"
@@ -48,9 +48,12 @@ uv run hbn convert --from json --to hbn --arg '{"mammal": "cat", "version": 1}'
 uv run hbn keys --arg "{'mammal': 'cat', 'version': 1}" --lines
 uv run hbn dump --arg "['cat', 'snake']" --bash-array animals
 uv run hbn dump --arg "{'host': 'db', 'port': '5432'}" --bash-assoc cfg
+uv run hbn get users.0.email users.hbn --raw
+uv run hbn q --glom "{'emails': ('users', ['email'])}" users.hbn
+uv run hbn set users.0.role --value "'admin'" users.hbn
 ```
 
-Supported phase 1 formats:
+Supported core formats:
 
 - HBN input and output
 - JSON input and output
@@ -69,6 +72,30 @@ Useful shell-oriented output flags:
 - `--bash-array NAME`
 - `--bash-assoc NAME`
 - `--default VALUE`
+
+For nested traversal and mutation, install the optional glom extra:
+
+```bash
+uv sync --extra glom
+uv run hbn q users.0.email users.hbn --raw
+uv run hbn q --glom "{'emails': ('users', ['email'])}" users.hbn
+uv run hbn append users --value "{'email': 'new@example.com'}" users.hbn
+```
+
+Phase 2 glom commands:
+
+- `q` / `query`
+- `get`
+- `set`
+- `del`
+- `append`
+- `insert`
+
+Glom query mode supports:
+
+- simple dot-path lookups such as `users.0.email`
+- `--glom SPEC` for explicit glom specs written in HBN / Python literal syntax
+- `--spec-file PATH` for reusable glom specs
 
 For formatter support, install the optional extra and use `hbn fmt`:
 

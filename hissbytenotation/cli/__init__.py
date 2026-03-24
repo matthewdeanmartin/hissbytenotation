@@ -1,4 +1,4 @@
-"""Phase 1 CLI entrypoint for hissbytenotation."""
+"""CLI entrypoint for hissbytenotation."""
 
 from __future__ import annotations
 
@@ -22,6 +22,13 @@ from hissbytenotation.cli.errors import (
     InputParseError,
     OperationTypeError,
 )
+from hissbytenotation.cli.glom_integration import (
+    append_value,
+    delete_value,
+    insert_value,
+    query_value,
+    set_value,
+)
 from hissbytenotation.cli.presenters import apply_default, render_output
 
 black: Any = None
@@ -42,6 +49,18 @@ TOPIC_HELP = {
   --bash-assoc NAME     emit a Bash associative array assignment for flat dicts
   --default VALUE       substitute VALUE when the result is empty
 """,
+    "glom": """Glom-powered queries:
+  q PATH               query nested data using a simple path such as users.0.email
+  q --glom SPEC        use an explicit glom spec written in HBN / Python literal syntax
+  q --spec-file PATH   load a glom spec from a file
+  get PATH             alias for simple path lookup
+  set PATH --value V   deep-set a nested value
+  del PATH             delete a nested value
+  append PATH --value V
+                       append to a nested list
+  insert PATH --index N --value V
+                       insert into a nested list
+""",
     "formats": """Supported formats:
   hbn   native Hiss Byte Notation / Python literal syntax
   json  stdlib JSON input and output
@@ -58,6 +77,7 @@ EXAMPLES = {
   hbn type data.hbn
   hbn keys --lines data.hbn
   hbn fmt config.hbn
+  hbn get users.0.email data.hbn --raw
 """,
     "bash": """Bash examples:
   hbn values --lines data.hbn
@@ -65,12 +85,27 @@ EXAMPLES = {
   hbn dump --arg "{'host': 'db', 'port': '5432'}" --bash-assoc cfg
   hbn len --arg "[]" --default 0 --raw
   db_url=$(hbn dump --arg "'postgres://db'" --shell-quote)
+  first_email=$(hbn get users.0.email data.hbn --raw)
+""",
+    "glom": """Glom examples:
+  hbn q users.0.email data.hbn --raw
+  hbn q --glom "{'emails': ('users', ['email'])}" data.hbn
+  hbn q --spec-file active_users.glomspec data.hbn
+  hbn set users.0.role --value "'admin'" data.hbn
+  hbn append users --value "{'email': 'new@example.com'}" data.hbn
 """,
 }
 
 COMMAND_NAMES = {
     "dump",
     "fmt",
+    "q",
+    "query",
+    "get",
+    "set",
+    "del",
+    "append",
+    "insert",
     "convert",
     "type",
     "keys",
@@ -85,9 +120,12 @@ COMMAND_NAMES = {
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the phase 1 CLI."""
+    """Run the CLI."""
     parser = build_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code or 0)
     try:
         return dispatch(args, parser)
     except CliError as exc:
@@ -110,7 +148,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     data_parent = build_data_parent_parser()
+    glom_data_parent = build_data_parent_parser(include_positional_path=False)
     output_parent = build_output_parent_parser()
+    glom_parent = build_glom_parent_parser()
 
     dump_parser = subparsers.add_parser("dump", parents=[data_parent, output_parent], help="Render input as HBN.")
     dump_parser.set_defaults(handler=handle_dump, to_format="hbn")
@@ -126,6 +166,65 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_parser.add_argument("--to", dest="to_format", required=True, help="Target output format.")
     convert_parser.set_defaults(handler=handle_convert)
+
+    query_parser = subparsers.add_parser(
+        "q",
+        aliases=["query"],
+        parents=[glom_data_parent, output_parent, glom_parent],
+        help="Query nested data with glom paths or specs.",
+    )
+    query_parser.add_argument("query_path", nargs="?", help="Simple query path such as users.0.email.")
+    query_parser.add_argument("source_path", nargs="?", help="Optional input file path.")
+    query_parser.set_defaults(handler=handle_query)
+
+    get_parser = subparsers.add_parser(
+        "get",
+        parents=[glom_data_parent, output_parent],
+        help="Read a nested value using a simple path.",
+    )
+    get_parser.add_argument("query_path", help="Simple query path such as users.0.email.")
+    get_parser.add_argument("source_path", nargs="?", help="Optional input file path.")
+    get_parser.set_defaults(handler=handle_get)
+
+    set_parser = subparsers.add_parser(
+        "set",
+        parents=[glom_data_parent, output_parent],
+        help="Set a nested value using a simple path.",
+    )
+    set_parser.add_argument("query_path", help="Simple query path such as users.0.email.")
+    set_parser.add_argument("--value", dest="value_text", required=True, help="Replacement value in HBN syntax.")
+    set_parser.add_argument("source_path", nargs="?", help="Optional input file path.")
+    set_parser.set_defaults(handler=handle_set)
+
+    del_parser = subparsers.add_parser(
+        "del",
+        parents=[glom_data_parent, output_parent],
+        help="Delete a nested value using a simple path.",
+    )
+    del_parser.add_argument("query_path", help="Simple query path such as users.0.email.")
+    del_parser.add_argument("source_path", nargs="?", help="Optional input file path.")
+    del_parser.set_defaults(handler=handle_del)
+
+    append_parser = subparsers.add_parser(
+        "append",
+        parents=[glom_data_parent, output_parent],
+        help="Append a value to a nested list.",
+    )
+    append_parser.add_argument("query_path", help="Simple path to a list target.")
+    append_parser.add_argument("--value", dest="value_text", required=True, help="Value to append in HBN syntax.")
+    append_parser.add_argument("source_path", nargs="?", help="Optional input file path.")
+    append_parser.set_defaults(handler=handle_append)
+
+    insert_parser = subparsers.add_parser(
+        "insert",
+        parents=[glom_data_parent, output_parent],
+        help="Insert a value into a nested list.",
+    )
+    insert_parser.add_argument("query_path", help="Simple path to a list target.")
+    insert_parser.add_argument("--index", type=int, required=True, help="Zero-based insert position.")
+    insert_parser.add_argument("--value", dest="value_text", required=True, help="Value to insert in HBN syntax.")
+    insert_parser.add_argument("source_path", nargs="?", help="Optional input file path.")
+    insert_parser.set_defaults(handler=handle_insert)
 
     for command_name, handler, help_text in (
         ("type", handle_type, "Show the root value type."),
@@ -155,14 +254,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_data_parent_parser() -> argparse.ArgumentParser:
+def build_data_parent_parser(*, include_positional_path: bool = True) -> argparse.ArgumentParser:
     """Build common input arguments."""
     parser = argparse.ArgumentParser(add_help=False)
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument("--file", dest="input_path", help="Read input from a file.")
     source_group.add_argument("--stdin", action="store_true", help="Read input from stdin.")
     source_group.add_argument("--arg", dest="input_text", help="Read input from a literal argument string.")
-    parser.add_argument("path", nargs="?", help="Optional input file path.")
+    if include_positional_path:
+        parser.add_argument("source_path", nargs="?", help="Optional input file path.")
     parser.add_argument("--from", dest="from_format", help="Input format.")
     parser.add_argument("--strict", action="store_true", help="Refuse lossy conversions.")
     parser.add_argument("--default", help="Default value to use when the result is empty.")
@@ -194,6 +294,15 @@ def build_output_parent_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def build_glom_parent_parser() -> argparse.ArgumentParser:
+    """Build shared glom query arguments."""
+    parser = argparse.ArgumentParser(add_help=False)
+    spec_group = parser.add_mutually_exclusive_group()
+    spec_group.add_argument("--glom", dest="glom_spec", help="Glom spec written in HBN / Python literal syntax.")
+    spec_group.add_argument("--spec-file", dest="spec_file_path", help="Read the glom spec from a file.")
+    return parser
+
+
 def dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Dispatch to the selected command handler."""
     handler = getattr(args, "handler", None)
@@ -214,6 +323,53 @@ def handle_convert(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     args.to_format = normalize_format_name(args.to_format, output=True)
     value = load_input_value(args)
     return emit_result(value, args)
+
+
+def handle_query(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Run a glom-backed query."""
+    value = load_input_value(args)
+    result = query_value(
+        value,
+        path_text=args.query_path,
+        spec_text=args.glom_spec,
+        spec_file_path=args.spec_file_path,
+        default_on_missing=args.default is not None,
+    )
+    return emit_result(result, args)
+
+
+def handle_get(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Run a simple path query."""
+    value = load_input_value(args)
+    result = query_value(value, path_text=args.query_path, default_on_missing=args.default is not None)
+    return emit_result(result, args)
+
+
+def handle_set(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Set a nested value."""
+    value = load_input_value(args)
+    new_value = parse_cli_value(args.value_text)
+    return emit_result(set_value(value, args.query_path, new_value), args)
+
+
+def handle_del(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Delete a nested value."""
+    value = load_input_value(args)
+    return emit_result(delete_value(value, args.query_path), args)
+
+
+def handle_append(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Append to a nested list."""
+    value = load_input_value(args)
+    new_value = parse_cli_value(args.value_text)
+    return emit_result(append_value(value, args.query_path, new_value), args)
+
+
+def handle_insert(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Insert into a nested list."""
+    value = load_input_value(args)
+    new_value = parse_cli_value(args.value_text)
+    return emit_result(insert_value(value, args.query_path, args.index, new_value), args)
 
 
 def handle_type(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
@@ -307,18 +463,18 @@ def handle_completion(args: argparse.Namespace, _parser: argparse.ArgumentParser
     """Emit a minimal shell completion script."""
     scripts = {
         "bash": """_hbn_complete() {
-    local commands=\"dump fmt convert type keys values items len help examples completion version\"
+    local commands=\"dump fmt q query get set del append insert convert type keys values items len help examples completion version\"
     COMPREPLY=( $(compgen -W \"$commands\" -- \"${COMP_WORDS[COMP_CWORD]}\") )
 }
 complete -F _hbn_complete hbn hissbytenotation
 """,
         "zsh": """#compdef hbn hissbytenotation
 local -a commands
-commands=(dump fmt convert type keys values items len help examples completion version)
+commands=(dump fmt q query get set del append insert convert type keys values items len help examples completion version)
 _describe 'command' commands
 """,
-        "fish": """complete -c hbn -f -a "dump fmt convert type keys values items len help examples completion version"
-complete -c hissbytenotation -f -a "dump fmt convert type keys values items len help examples completion version"
+        "fish": """complete -c hbn -f -a "dump fmt q query get set del append insert convert type keys values items len help examples completion version"
+complete -c hissbytenotation -f -a "dump fmt q query get set del append insert convert type keys values items len help examples completion version"
 """,
     }
     print(scripts[args.shell], end="")
@@ -338,10 +494,16 @@ def load_input_value(args: argparse.Namespace) -> Any:
     return parse_value(source_text, from_format, strict=args.strict)
 
 
+def parse_cli_value(value_text: str) -> Any:
+    """Parse a CLI value argument as HBN."""
+    return parse_value(value_text, "hbn")
+
+
 def load_input_text(args: argparse.Namespace) -> tuple[str, str | None]:
     """Load raw input text from one of the supported sources."""
-    input_path = args.input_path or args.path
-    if args.input_path and args.path and args.input_path != args.path:
+    source_path = getattr(args, "source_path", None)
+    input_path = args.input_path or source_path
+    if args.input_path and source_path and args.input_path != source_path:
         raise InputParseError("Use only one input file path source.")
     explicit_non_file_sources = int(args.stdin) + int(args.input_text is not None)
     if input_path and explicit_non_file_sources:

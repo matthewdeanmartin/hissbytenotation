@@ -39,10 +39,23 @@ diff = []
 
 
 [dependency-groups]
-dev = ["mdformat", "vermin", "hypothesis[cli]",
-    "pre-commit", "mypy", "pytest", "pytest-cov", "ruff", "tox",
-    "isort","black","pylint", "bandit","pre-commit"
-    ]
+dev = [
+    "mdformat",
+    "vermin",
+    "hypothesis[cli]",
+    "pre-commit",
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "tox",
+    "isort",
+    "black",
+    "pylint",
+    "bandit",
+    "pre-commit",
+    "glom>=25.12.0",
+]
 
 [tool.black]
 line-length = 120
@@ -144,4 +157,8 @@ output_file = "CHANGELOG.${config:format}"
 
 [[tool.mypy.overrides]]
 module = ["mistune.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["glom", "glom.*"]
 ignore_missing_imports = true

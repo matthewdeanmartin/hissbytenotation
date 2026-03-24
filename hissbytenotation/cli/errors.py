@@ -67,3 +67,9 @@ class ExternalToolError(CliError):
     """Raised when an external formatter is unavailable."""
 
     exit_code = EXTERNAL_TOOL_MISSING
+
+
+class GlomCliError(CliError):
+    """Raised when glom is unavailable or a glom spec fails."""
+
+    exit_code = GLOM_FAILURE
