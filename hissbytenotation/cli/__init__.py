@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +31,11 @@ from hissbytenotation.cli.glom_integration import (
     insert_value,
     query_value,
     set_value,
+)
+from hissbytenotation.cli.merge_ops import (
+    CONFLICT_POLICIES,
+    MERGE_STRATEGIES,
+    merge_values,
 )
 from hissbytenotation.cli.presenters import apply_default, render_output
 
@@ -60,6 +68,19 @@ TOPIC_HELP = {
                        append to a nested list
   insert PATH --index N --value V
                        insert into a nested list
+""",
+    "merge": """Merge and file mutation helpers:
+  merge LEFT RIGHT                     merge two inputs
+  merge --strategy deep               recursively merge nested dicts
+  merge --strategy append-lists       concatenate lists during recursive merge
+  merge --strategy set-union-lists    union lists while preserving order
+  merge --conflict error              fail on conflicting values
+  merge --conflict left-wins          keep the left value on conflicts
+  merge --conflict right-wins         keep the right value on conflicts
+  --in-place                          write back to the input file
+  --backup SUFFIX                     create a backup before writing
+  --atomic                            write through a temp file then replace
+  --check                             validate without printing or writing
 """,
     "formats": """Supported formats:
   hbn   native Hiss Byte Notation / Python literal syntax
@@ -94,6 +115,13 @@ EXAMPLES = {
   hbn set users.0.role --value "'admin'" data.hbn
   hbn append users --value "{'email': 'new@example.com'}" data.hbn
 """,
+    "merge": """Merge examples:
+  hbn merge left.hbn right.hbn
+  hbn merge --strategy append-lists left.hbn right.hbn
+  hbn merge --conflict right-wins --left-arg "{'a': 1}" --right-arg "{'a': 2}"
+  hbn set config.port --value 5432 --in-place settings.hbn
+  hbn append users --value "{'email': 'new@example.com'}" --backup .bak users.hbn
+""",
 }
 
 COMMAND_NAMES = {
@@ -106,6 +134,7 @@ COMMAND_NAMES = {
     "del",
     "append",
     "insert",
+    "merge",
     "convert",
     "type",
     "keys",
@@ -151,6 +180,8 @@ def build_parser() -> argparse.ArgumentParser:
     glom_data_parent = build_data_parent_parser(include_positional_path=False)
     output_parent = build_output_parent_parser()
     glom_parent = build_glom_parent_parser()
+    mutation_parent = build_mutation_parent_parser()
+    merge_parent = build_merge_parent_parser()
 
     dump_parser = subparsers.add_parser("dump", parents=[data_parent, output_parent], help="Render input as HBN.")
     dump_parser.set_defaults(handler=handle_dump, to_format="hbn")
@@ -188,7 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     set_parser = subparsers.add_parser(
         "set",
-        parents=[glom_data_parent, output_parent],
+        parents=[glom_data_parent, output_parent, mutation_parent],
         help="Set a nested value using a simple path.",
     )
     set_parser.add_argument("query_path", help="Simple query path such as users.0.email.")
@@ -198,7 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     del_parser = subparsers.add_parser(
         "del",
-        parents=[glom_data_parent, output_parent],
+        parents=[glom_data_parent, output_parent, mutation_parent],
         help="Delete a nested value using a simple path.",
     )
     del_parser.add_argument("query_path", help="Simple query path such as users.0.email.")
@@ -207,7 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     append_parser = subparsers.add_parser(
         "append",
-        parents=[glom_data_parent, output_parent],
+        parents=[glom_data_parent, output_parent, mutation_parent],
         help="Append a value to a nested list.",
     )
     append_parser.add_argument("query_path", help="Simple path to a list target.")
@@ -217,7 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     insert_parser = subparsers.add_parser(
         "insert",
-        parents=[glom_data_parent, output_parent],
+        parents=[glom_data_parent, output_parent, mutation_parent],
         help="Insert a value into a nested list.",
     )
     insert_parser.add_argument("query_path", help="Simple path to a list target.")
@@ -225,6 +256,23 @@ def build_parser() -> argparse.ArgumentParser:
     insert_parser.add_argument("--value", dest="value_text", required=True, help="Value to insert in HBN syntax.")
     insert_parser.add_argument("source_path", nargs="?", help="Optional input file path.")
     insert_parser.set_defaults(handler=handle_insert)
+
+    merge_parser = subparsers.add_parser(
+        "merge",
+        parents=[output_parent, mutation_parent, merge_parent],
+        help="Merge two inputs using a selected strategy.",
+    )
+    merge_parser.add_argument("left_source", nargs="?", help="Left input file path.")
+    merge_parser.add_argument("right_source", nargs="?", help="Right input file path.")
+    merge_parser.add_argument("--left-file", dest="left_file", help="Explicit left input file path.")
+    merge_parser.add_argument("--right-file", dest="right_file", help="Explicit right input file path.")
+    merge_parser.add_argument("--left-arg", dest="left_arg", help="Left input literal text.")
+    merge_parser.add_argument("--right-arg", dest="right_arg", help="Right input literal text.")
+    merge_parser.add_argument("--left-stdin", action="store_true", help="Read the left input from stdin.")
+    merge_parser.add_argument("--left-from", dest="left_format", help="Format for the left input.")
+    merge_parser.add_argument("--right-from", dest="right_format", help="Format for the right input.")
+    merge_parser.add_argument("--to", dest="to_format", help="Target output format.")
+    merge_parser.set_defaults(handler=handle_merge)
 
     for command_name, handler, help_text in (
         ("type", handle_type, "Show the root value type."),
@@ -303,6 +351,37 @@ def build_glom_parent_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def build_mutation_parent_parser() -> argparse.ArgumentParser:
+    """Build shared mutation file arguments."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--in-place", action="store_true", help="Write the result back to the input file.")
+    parser.add_argument("--backup", metavar="SUFFIX", help="Create a backup copy before writing in place.")
+    parser.add_argument("--atomic", action="store_true", help="Write through a temporary file and replace the input.")
+    parser.add_argument("--check", action="store_true", help="Validate the command without printing or writing.")
+    return parser
+
+
+def build_merge_parent_parser() -> argparse.ArgumentParser:
+    """Build shared merge arguments."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--strategy", choices=MERGE_STRATEGIES, default="deep", help="Merge strategy to apply.")
+    parser.add_argument(
+        "--conflict",
+        choices=CONFLICT_POLICIES,
+        default="error",
+        help="Conflict policy for non-mergeable values.",
+    )
+    parser.add_argument("--strict", action="store_true", help="Refuse mismatched types unless using replace.")
+    parser.add_argument("--default", help="Default value to use when the result is empty.")
+    parser.add_argument("--exit-status", action="store_true", help="Return exit code 1 for falsey results.")
+    parser.add_argument("--quiet", action="store_true", help="Suppress normal command output.")
+    parser.add_argument("--verbose", action="store_true", help="Reserved for future verbose output.")
+    parser.add_argument("--debug", action="store_true", help="Raise exceptions with tracebacks.")
+    parser.add_argument("--color", action="store_true", help="Reserved for future colored output.")
+    parser.add_argument("--no-color", action="store_true", help="Reserved for future plain output.")
+    return parser
+
+
 def dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Dispatch to the selected command handler."""
     handler = getattr(args, "handler", None)
@@ -349,27 +428,41 @@ def handle_set(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> in
     """Set a nested value."""
     value = load_input_value(args)
     new_value = parse_cli_value(args.value_text)
-    return emit_result(set_value(value, args.query_path, new_value), args)
+    return finish_mutation(set_value(value, args.query_path, new_value), args)
 
 
 def handle_del(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Delete a nested value."""
     value = load_input_value(args)
-    return emit_result(delete_value(value, args.query_path), args)
+    return finish_mutation(delete_value(value, args.query_path), args)
 
 
 def handle_append(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Append to a nested list."""
     value = load_input_value(args)
     new_value = parse_cli_value(args.value_text)
-    return emit_result(append_value(value, args.query_path, new_value), args)
+    return finish_mutation(append_value(value, args.query_path, new_value), args)
 
 
 def handle_insert(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Insert into a nested list."""
     value = load_input_value(args)
     new_value = parse_cli_value(args.value_text)
-    return emit_result(insert_value(value, args.query_path, args.index, new_value), args)
+    return finish_mutation(insert_value(value, args.query_path, args.index, new_value), args)
+
+
+def handle_merge(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Merge two inputs using the selected strategy."""
+    left_value, left_path = load_merge_input(args, side="left")
+    right_value, _right_path = load_merge_input(args, side="right")
+    result = merge_values(
+        left_value,
+        right_value,
+        strategy=args.strategy,
+        conflict=args.conflict,
+        strict=args.strict,
+    )
+    return finish_mutation(result, args, input_path=left_path)
 
 
 def handle_type(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
@@ -463,18 +556,18 @@ def handle_completion(args: argparse.Namespace, _parser: argparse.ArgumentParser
     """Emit a minimal shell completion script."""
     scripts = {
         "bash": """_hbn_complete() {
-    local commands=\"dump fmt q query get set del append insert convert type keys values items len help examples completion version\"
+    local commands=\"dump fmt q query get set del append insert merge convert type keys values items len help examples completion version\"
     COMPREPLY=( $(compgen -W \"$commands\" -- \"${COMP_WORDS[COMP_CWORD]}\") )
 }
 complete -F _hbn_complete hbn hissbytenotation
 """,
         "zsh": """#compdef hbn hissbytenotation
 local -a commands
-commands=(dump fmt q query get set del append insert convert type keys values items len help examples completion version)
+commands=(dump fmt q query get set del append insert merge convert type keys values items len help examples completion version)
 _describe 'command' commands
 """,
-        "fish": """complete -c hbn -f -a "dump fmt q query get set del append insert convert type keys values items len help examples completion version"
-complete -c hissbytenotation -f -a "dump fmt q query get set del append insert convert type keys values items len help examples completion version"
+        "fish": """complete -c hbn -f -a "dump fmt q query get set del append insert merge convert type keys values items len help examples completion version"
+complete -c hissbytenotation -f -a "dump fmt q query get set del append insert merge convert type keys values items len help examples completion version"
 """,
     }
     print(scripts[args.shell], end="")
@@ -499,6 +592,52 @@ def parse_cli_value(value_text: str) -> Any:
     return parse_value(value_text, "hbn")
 
 
+def load_merge_input(args: argparse.Namespace, *, side: str) -> tuple[Any, str | None]:
+    """Load one side of a merge operation."""
+    positional_name = f"{side}_source"
+    file_name = f"{side}_file"
+    arg_name = f"{side}_arg"
+    format_name = f"{side}_format"
+    stdin_name = f"{side}_stdin"
+
+    positional_path = getattr(args, positional_name, None)
+    explicit_path = getattr(args, file_name, None)
+    literal_text = getattr(args, arg_name, None)
+    from_format = getattr(args, format_name, None)
+    use_stdin = bool(getattr(args, stdin_name, False))
+
+    provided_count = (
+        int(positional_path is not None)
+        + int(explicit_path is not None)
+        + int(literal_text is not None)
+        + int(use_stdin)
+    )
+    if provided_count != 1:
+        allowed_sources = [f"--{side}-file", f"--{side}-arg", "a positional file"]
+        if side == "left":
+            allowed_sources.append("--left-stdin")
+        raise InputParseError(f"Provide exactly one {side} input using {', '.join(allowed_sources)}.")
+    if positional_path and explicit_path and positional_path != explicit_path:
+        raise InputParseError(f"Use only one {side} file path source.")
+    input_path = explicit_path or positional_path
+    if input_path:
+        try:
+            text = Path(input_path).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise FileIOCliError(f"Could not read {input_path}: {exc}") from exc
+        format_hint = from_format or infer_format_from_path(input_path, output=False)
+        return parse_value(text, format_hint, strict=args.strict), input_path
+    if literal_text is not None:
+        format_hint = from_format or "hbn"
+        return parse_value(literal_text, format_hint, strict=args.strict), None
+    try:
+        text = sys.stdin.read()
+    except OSError as exc:
+        raise FileIOCliError(f"Could not read stdin: {exc}") from exc
+    format_hint = from_format or "hbn"
+    return parse_value(text, format_hint, strict=args.strict), None
+
+
 def load_input_text(args: argparse.Namespace) -> tuple[str, str | None]:
     """Load raw input text from one of the supported sources."""
     source_path = getattr(args, "source_path", None)
@@ -521,6 +660,102 @@ def load_input_text(args: argparse.Namespace) -> tuple[str, str | None]:
         except OSError as exc:
             raise FileIOCliError(f"Could not read stdin: {exc}") from exc
     raise InputParseError("Provide input with a file path, --file, --stdin, or --arg.")
+
+
+def finish_mutation(value: Any, args: argparse.Namespace, *, input_path: str | None = None) -> int:
+    """Handle check/in-place behavior for mutation-style commands."""
+    validate_mutation_options(args, input_path=input_path)
+    if getattr(args, "check", False):
+        return 0
+    if mutation_requested(args):
+        return write_in_place_result(value, args, input_path=input_path)
+    return emit_result(value, args)
+
+
+def mutation_requested(args: argparse.Namespace) -> bool:
+    """Return True when mutation file options are active."""
+    return bool(getattr(args, "in_place", False) or getattr(args, "backup", None) or getattr(args, "atomic", False))
+
+
+def validate_mutation_options(args: argparse.Namespace, *, input_path: str | None = None) -> None:
+    """Validate shared mutation file options."""
+    if getattr(args, "check", False) and getattr(args, "output_path", None):
+        raise InputParseError("--check cannot be combined with --output.")
+    if mutation_requested(args) and any(
+        (
+            getattr(args, "raw", False),
+            getattr(args, "lines", False),
+            getattr(args, "nul", False),
+            getattr(args, "shell_quote", False),
+            getattr(args, "shell_assign", None),
+            getattr(args, "shell_export", None),
+            getattr(args, "bash_array", None),
+            getattr(args, "bash_assoc", None),
+        )
+    ):
+        raise InputParseError("In-place mutations require structured output and cannot use shell presentation flags.")
+    if not mutation_requested(args):
+        return
+    if getattr(args, "output_path", None):
+        raise InputParseError("--in-place, --backup, and --atomic cannot be combined with --output.")
+    if input_path is None:
+        input_path = resolve_mutation_input_path(args)
+    if input_path is None:
+        raise InputParseError(
+            "--in-place, --backup, and --atomic require a file-backed input. Use a file path instead of --arg or --stdin."
+        )
+
+
+def resolve_mutation_input_path(args: argparse.Namespace) -> str | None:
+    """Resolve the file path that an in-place mutation should write back to."""
+    return getattr(args, "input_path", None) or getattr(args, "source_path", None)
+
+
+def write_in_place_result(value: Any, args: argparse.Namespace, *, input_path: str | None = None) -> int:
+    """Write a mutation result back to its source file."""
+    target_path = input_path or resolve_mutation_input_path(args)
+    if target_path is None:
+        raise InputParseError("No input file path is available for in-place writing.")
+    target_format = getattr(args, "to_format", None)
+    if target_format is None:
+        target_format = infer_format_from_path(target_path, output=True)
+    else:
+        target_format = normalize_format_name(target_format, output=True)
+    args.to_format = target_format
+    output_text = render_output(value, args)
+    if output_text and not args.nul and not output_text.endswith("\0"):
+        output_text = f"{output_text}\n"
+    target = Path(target_path)
+    if getattr(args, "backup", None):
+        backup_path = Path(f"{target_path}{args.backup}")
+        try:
+            shutil.copy2(target, backup_path)
+        except OSError as exc:
+            raise FileIOCliError(f"Could not create backup {backup_path}: {exc}") from exc
+    if getattr(args, "atomic", False):
+        temporary_path: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=str(target.parent),
+                prefix=f"{target.stem}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_file.write(output_text)
+                temporary_path = temporary_file.name
+            os.replace(temporary_path, target)
+        except OSError as exc:
+            if temporary_path is not None and Path(temporary_path).exists():
+                Path(temporary_path).unlink(missing_ok=True)
+            raise FileIOCliError(f"Atomic write failed for {target_path}: {exc}") from exc
+        return 0
+    try:
+        target.write_text(output_text, encoding="utf-8")
+    except OSError as exc:
+        raise FileIOCliError(f"Could not write {target_path}: {exc}") from exc
+    return 0
 
 
 def emit_result(value: Any, args: argparse.Namespace) -> int:

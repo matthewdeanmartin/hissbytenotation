@@ -73,3 +73,9 @@ class GlomCliError(CliError):
     """Raised when glom is unavailable or a glom spec fails."""
 
     exit_code = GLOM_FAILURE
+
+
+class MergeConflictError(CliError):
+    """Raised when merge inputs conflict under the selected policy."""
+
+    exit_code = MERGE_CONFLICT

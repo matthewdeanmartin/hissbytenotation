@@ -40,7 +40,7 @@ print(rehydrated)
 
 ## CLI
 
-Phase 2 ships a Bash-first CLI with the `hbn` command:
+Phase 3 ships a Bash-first CLI with the `hbn` command:
 
 ```bash
 uv run hbn dump --arg "{'mammal': 'cat', 'version': 1}"
@@ -51,6 +51,8 @@ uv run hbn dump --arg "{'host': 'db', 'port': '5432'}" --bash-assoc cfg
 uv run hbn get users.0.email users.hbn --raw
 uv run hbn q --glom "{'emails': ('users', ['email'])}" users.hbn
 uv run hbn set users.0.role --value "'admin'" users.hbn
+uv run hbn merge left.hbn right.hbn
+uv run hbn merge --strategy append-lists left.hbn right.hbn
 ```
 
 Supported core formats:
@@ -96,6 +98,21 @@ Glom query mode supports:
 - simple dot-path lookups such as `users.0.email`
 - `--glom SPEC` for explicit glom specs written in HBN / Python literal syntax
 - `--spec-file PATH` for reusable glom specs
+
+Phase 3 merge and mutation workflows:
+
+- `merge`
+- merge strategies: `replace`, `shallow`, `deep`, `append-lists`, `set-union-lists`
+- conflict policies: `error`, `left-wins`, `right-wins`
+- file mutation flags: `--in-place`, `--backup SUFFIX`, `--atomic`, `--check`
+
+Examples:
+
+```bash
+uv run hbn merge --conflict right-wins --left-arg "{'a': 1}" --right-arg "{'a': 2}"
+uv run hbn set config.port --value 6432 --in-place settings.hbn
+uv run hbn append users --value "{'email': 'new@example.com'}" --backup .bak users.hbn
+```
 
 For formatter support, install the optional extra and use `hbn fmt`:
 
