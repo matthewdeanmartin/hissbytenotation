@@ -38,6 +38,45 @@ print(rehydrated)
 # {'mammal': 'cat', 'reptile': ['snake', 'lizard'], 'version': 1}
 ```
 
+## CLI
+
+Phase 1 ships a Bash-first CLI with the `hbn` command:
+
+```bash
+uv run hbn dump --arg "{'mammal': 'cat', 'version': 1}"
+uv run hbn convert --from json --to hbn --arg '{"mammal": "cat", "version": 1}'
+uv run hbn keys --arg "{'mammal': 'cat', 'version': 1}" --lines
+uv run hbn dump --arg "['cat', 'snake']" --bash-array animals
+uv run hbn dump --arg "{'host': 'db', 'port': '5432'}" --bash-assoc cfg
+```
+
+Supported phase 1 formats:
+
+- HBN input and output
+- JSON input and output
+- TOML input
+- XML input and output via a simple `@attrs` / `#text` mapping
+- Bash Map Notation (`bmn`) for flat dicts and scalar arrays
+
+Useful shell-oriented output flags:
+
+- `--raw`
+- `--lines`
+- `--nul`
+- `--shell-quote`
+- `--shell-assign NAME`
+- `--shell-export NAME`
+- `--bash-array NAME`
+- `--bash-assoc NAME`
+- `--default VALUE`
+
+For formatter support, install the optional extra and use `hbn fmt`:
+
+```bash
+uv sync --extra fmt
+uv run hbn fmt --arg "{'b':2,'a':1}"
+```
+
 ### Rust-accelerated parsing
 
 Install the `hbn_rust` package for a ~14x speedup over `ast.literal_eval`:

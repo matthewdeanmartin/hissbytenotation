@@ -28,6 +28,15 @@ dependencies = []
 "Bug Tracker" = "https://github.com/matthewdeanmartin/hissbytenotation/issues"
 "Change Log" = "https://github.com/matthewdeanmartin/hissbytenotation/blob/main/CHANGES.md"
 
+[project.scripts]
+hbn = "hissbytenotation.cli:main"
+hissbytenotation = "hissbytenotation.cli:main"
+
+[project.optional-dependencies]
+fmt = ["black"]
+glom = ["glom"]
+diff = []
+
 
 [dependency-groups]
 dev = ["mdformat", "vermin", "hypothesis[cli]",

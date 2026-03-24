@@ -35,6 +35,7 @@ def reload_module(module_name: str, file_path: str) -> Any:
     if source is None:
         raise ImportError(f"Could not read source for {module_name}")
 
+    # pylint: disable=exec-used
     exec(compile(source, file_path, "exec"), module.__dict__)
     sys.modules[module_name] = module
 

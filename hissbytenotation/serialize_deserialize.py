@@ -52,11 +52,9 @@ def loads(
     """
     if by_rust:
         try:
-            import hbn_rust  # type: ignore[import-untyped]
+            import hbn_rust  # type: ignore[import-not-found, import-untyped]  # pylint: disable=import-outside-toplevel
         except ImportError as e:
-            raise ImportError(
-                "hbn_rust is not installed. Install it with: cd rust && maturin develop --release"
-            ) from e
+            raise ImportError("hbn_rust is not installed. Install it with: cd rust && maturin develop --release") from e
         return hbn_rust.loads(source_code)
     if by_import:
         return loads_via_import(source_code)
