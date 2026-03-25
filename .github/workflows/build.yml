@@ -61,19 +61,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pytest-cov maturin
-
-      - name: Install hissbytenotation
-        run: pip install -e .
+          python -m pip install uv
+          uv sync --group dev --extra fmt --extra glom --extra validate
+          uv pip install maturin
 
       - name: Build and install Rust extension
-        run: |
-          maturin build --release --manifest-path rust/Cargo.toml --out dist
-          python -c "import pathlib, subprocess, sys; wheel = next(pathlib.Path('dist').glob('*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)])"
+        run: uv run maturin develop --release --manifest-path rust/Cargo.toml
 
       - name: Run tests
-        run: |
-          pytest test/ -v --cov=hissbytenotation --cov-report=term-missing
+        run: uv run pytest test/ -v --cov=hissbytenotation --cov-report=term-missing
 
   rust-test:
     name: Rust unit tests
