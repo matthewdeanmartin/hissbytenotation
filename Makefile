@@ -11,7 +11,7 @@ uv.lock: pyproject.toml
 
 # tests can't be expected to pass if dependencies aren't installed.
 # tests are often slow and linting is fast, so run tests on linted code.
-test: pylint bandit uv.lock
+test: pylint bandit uv.lock bash-examples
 	@echo "Running unit tests"
 	# $(VENV) pytest hissbytenotation --doctest-modules
 	# $(VENV) python -m unittest discover
@@ -45,7 +45,11 @@ mypy:
 	@echo "Security checks"
 	$(VENV)  mypy hissbytenotation
 
-.PHONY: format benchmark perf-wheel perf-python-tests perf-rust-tests perf-rust-only perf-benchmark perf-check perf
+.PHONY: format benchmark bash-examples perf-wheel perf-python-tests perf-rust-tests perf-rust-only perf-benchmark perf-check perf
+bash-examples: uv.lock
+	@echo "Running bash CLI examples"
+	@bash -lc 'set -euo pipefail; shopt -s nullglob; scripts=(examples/*.sh); if [ "$${#scripts[@]}" -eq 0 ]; then echo "No example scripts found in examples." >&2; exit 1; fi; for script in "$${scripts[@]}"; do echo "Running $${script##*/}"; bash "$$script"; done'
+
 format: isort black
 
 benchmark:
