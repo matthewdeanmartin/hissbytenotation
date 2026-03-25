@@ -38,6 +38,12 @@ def collect_doctor_report() -> dict[str, Any]:
             summary="Rust-accelerated HBN parsing.",
             install_hint="pip install hbn-rust",
         ),
+        "validate": _module_check(
+            module_name="cerberus",
+            distribution_name="cerberus",
+            summary="Schema validation via `hbn validate` using cerberus schemas.",
+            install_hint="uv sync --extra validate",
+        ),
     }
     tools = {
         "uv": _command_check("uv", "Project environment and install workflow."),

@@ -27,6 +27,7 @@ from hissbytenotation.cli.errors import (
     FileIOCliError,
     InputParseError,
     OperationTypeError,
+    ValidationFailureError,
 )
 from hissbytenotation.cli.glom_integration import (
     append_value,
@@ -453,6 +454,16 @@ def build_parser() -> argparse.ArgumentParser:
     version_parser = subparsers.add_parser("version", help="Show the installed version.")
     version_parser.set_defaults(handler=handle_version)
 
+    validate_parser = subparsers.add_parser(
+        "validate",
+        parents=[data_parent],
+        help="Validate data against a cerberus schema.",
+    )
+    schema_group = validate_parser.add_mutually_exclusive_group(required=True)
+    schema_group.add_argument("--schema", dest="schema_text", help="Schema in HBN syntax.")
+    schema_group.add_argument("--schema-file", dest="schema_file", help="Path to a schema file in HBN syntax.")
+    validate_parser.set_defaults(handler=handle_validate)
+
     gui_parser = subparsers.add_parser("gui", help="Launch the graphical interface.")
     gui_parser.set_defaults(handler=handle_gui)
 
@@ -736,6 +747,41 @@ def handle_doctor(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
     if getattr(args, "to_format", None):
         args.to_format = normalize_format_name(args.to_format, output=True)
     return emit_result(collect_doctor_report(), args)
+
+
+def handle_validate(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Validate data against a cerberus schema."""
+    try:
+        import cerberus
+    except ImportError as exc:
+        raise ExternalToolError(
+            "Validation requires cerberus. Install with: uv add cerberus  or  pip install cerberus"
+        ) from exc
+
+    value = load_input_value(args)
+
+    if args.schema_text:
+        schema_src = args.schema_text
+    else:
+        try:
+            schema_src = Path(args.schema_file).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise FileIOCliError(f"Could not read schema file {args.schema_file}: {exc}") from exc
+
+    from hissbytenotation.cli.codecs import parse_value
+    schema = parse_value(schema_src, "hbn")
+
+    v = cerberus.Validator(schema)
+    if v.validate(value):
+        if not getattr(args, "quiet", False):
+            sys.stdout.write("OK\n")
+        return 0
+    else:
+        errors = v.errors
+        if not getattr(args, "quiet", False):
+            import json
+            sys.stdout.write(f"INVALID\n{json.dumps(errors, indent=2, default=str)}\n")
+        raise ValidationFailureError(f"Schema validation failed: {errors}")
 
 
 def handle_help(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:

@@ -1,7 +1,7 @@
 """HBN GUI — Tkinter interface for hissbytenotation.
 
 Single-file GUI following the architecture spec in spec/tkinter.md.
-Panels: Dashboard, Browse, Query, Mutate, Merge, Diff, REPL, Generate, Doctor.
+Panels: Dashboard, Browse, Query, Mutate, Merge, Diff, Validate, REPL, Generate, Doctor.
 """
 
 from __future__ import annotations
@@ -339,6 +339,7 @@ class DashboardPanel(_BasePanel):
             "  Mutate      Set, delete, append, insert values\n"
             "  Merge       Merge two data sources\n"
             "  Diff        Compare two data sources\n"
+            "  Validate    Check data against a cerberus schema\n"
             "  REPL        Interactive command shell\n"
             "  Generate    Create random sample data\n"
             "  Doctor      Check optional capabilities\n"
@@ -1468,6 +1469,264 @@ class DoctorPanel(_BasePanel):
         self._status.set(f"Doctor failed: {exc}")
 
 
+# ── Validate Panel ──────────────────────────────────────────────────
+
+_SCHEMA_EXAMPLES = {
+    "Book": """\
+{
+    'title': {'type': 'string', 'required': True, 'maxlength': 200},
+    'author': {'type': 'string', 'required': True},
+    'year': {'type': 'integer', 'min': 1000, 'max': 2100},
+    'isbn': {'type': 'string', 'nullable': True},
+    'pages': {'type': 'integer', 'min': 1},
+    'in_print': {'type': 'boolean'},
+}""",
+    "Student": """\
+{
+    'name': {'type': 'string', 'required': True, 'minlength': 2},
+    'age': {'type': 'integer', 'required': True, 'min': 5, 'max': 120},
+    'gpa': {'type': 'float', 'min': 0.0, 'max': 4.0},
+    'enrolled': {'type': 'boolean', 'required': True},
+    'courses': {
+        'type': 'list',
+        'schema': {'type': 'string'},
+    },
+    'address': {
+        'type': 'dict',
+        'schema': {
+            'street': {'type': 'string'},
+            'city': {'type': 'string'},
+            'zip': {'type': 'string', 'regex': r'\\d{5}'},
+        },
+    },
+}""",
+    "Bicycle": """\
+{
+    'make': {'type': 'string', 'required': True},
+    'model': {'type': 'string', 'required': True},
+    'year': {'type': 'integer', 'required': True, 'min': 1880, 'max': 2100},
+    'color': {'type': 'string'},
+    'gears': {'type': 'integer', 'min': 1, 'max': 33},
+    'type': {
+        'type': 'string',
+        'allowed': ['road', 'mountain', 'hybrid', 'cruiser', 'bmx', 'gravel'],
+    },
+    'weight_kg': {'type': 'float', 'min': 1.0, 'max': 50.0},
+    'electric': {'type': 'boolean'},
+}""",
+}
+
+_SCHEMA_SAMPLE_DATA = {
+    "Book": """\
+{
+    'title': 'The Great Gatsby',
+    'author': 'F. Scott Fitzgerald',
+    'year': 1925,
+    'isbn': '978-0743273565',
+    'pages': 180,
+    'in_print': True,
+}""",
+    "Student": """\
+{
+    'name': 'Alice',
+    'age': 20,
+    'gpa': 3.8,
+    'enrolled': True,
+    'courses': ['Math', 'Physics', 'History'],
+    'address': {
+        'street': '123 Main St',
+        'city': 'Springfield',
+        'zip': '62701',
+    },
+}""",
+    "Bicycle": """\
+{
+    'make': 'Trek',
+    'model': 'Domane SL6',
+    'year': 2023,
+    'color': 'Matte Black',
+    'gears': 22,
+    'type': 'road',
+    'weight_kg': 8.2,
+    'electric': False,
+}""",
+}
+
+_CERBERUS_CHEAT = """\
+CERBERUS SCHEMA RULES
+
+TYPES
+  'type': 'string'
+  'type': 'integer'
+  'type': 'float'
+  'type': 'boolean'
+  'type': 'list'
+  'type': 'dict'
+  'type': 'date'
+
+CONSTRAINTS
+  'required': True/False
+  'nullable': True/False
+  'minlength': N
+  'maxlength': N
+  'min': value
+  'max': value
+  'allowed': [a, b, c]
+  'regex': 'pattern'
+  'default': value
+
+NESTED DICT
+  'schema': {
+    'field': {'type': 'string'}
+  }
+
+NESTED LIST
+  'schema': {'type': 'integer'}
+
+COERCION
+  'coerce': int
+  'coerce': float
+  'coerce': str
+"""
+
+
+class ValidatePanel(_BasePanel):
+    """Validate HBN data against a cerberus schema."""
+
+    def __init__(self, parent: tk.Widget, runner: _BackgroundRunner, status_var: tk.StringVar, app: HbnApp) -> None:
+        super().__init__(parent, runner, status_var, app)
+
+        pane = tk.PanedWindow(self, orient=tk.HORIZONTAL, bg=_CLR_BG, sashwidth=2, sashrelief=tk.FLAT)
+        pane.pack(fill=tk.BOTH, expand=True)
+
+        left = tk.Frame(pane, bg=_CLR_BG)
+        pane.add(left, stretch="always")
+
+        _make_heading(left, "Validate Data")
+
+        # Schema section
+        schema_bar = _make_toolbar(left)
+        _make_label(schema_bar, "Schema:", font=_FONT_UI_BOLD).pack(side=tk.LEFT, padx=(0, 8))
+        for name in _SCHEMA_EXAMPLES:
+            _toolbar_btn(schema_bar, name, lambda n=name: self._load_example(n))
+        _toolbar_btn(schema_bar, "Load File...", self._load_schema_file)
+
+        self._schema_input = _make_input(left, height=8)
+
+        # Data section
+        data_bar = _make_toolbar(left)
+        _make_label(data_bar, "Data:", font=_FONT_UI_BOLD).pack(side=tk.LEFT, padx=(0, 8))
+        _toolbar_btn(data_bar, "Use Current", self._paste_current)
+        _toolbar_btn(data_bar, "Load File...", self._load_data_file)
+
+        self._data_input = _make_input(left, height=6)
+
+        # Run
+        run_bar = _make_toolbar(left)
+        _toolbar_btn(run_bar, "Validate", self._execute)
+
+        self._output = _make_output(left, height=6)
+
+        cheat = _make_cheat_panel(pane, "Schema Reference", _CERBERUS_CHEAT, width=28)
+        pane.add(cheat, minsize=180, stretch="never")
+
+    def _load_example(self, name: str) -> None:
+        schema_text = _SCHEMA_EXAMPLES[name]
+        self._schema_input.delete("1.0", tk.END)
+        self._schema_input.insert("1.0", schema_text)
+        data_text = _SCHEMA_SAMPLE_DATA[name]
+        self._data_input.delete("1.0", tk.END)
+        self._data_input.insert("1.0", data_text)
+        self._status.set(f"Loaded {name} example schema and data.")
+
+    def _load_schema_file(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Load Schema File",
+            filetypes=[("HBN files", "*.hbn *.py"), ("All files", "*.*")],
+        )
+        if path:
+            try:
+                text = Path(path).read_text(encoding="utf-8")
+                self._schema_input.delete("1.0", tk.END)
+                self._schema_input.insert("1.0", text)
+            except OSError as exc:
+                messagebox.showerror("File Error", str(exc))
+
+    def _load_data_file(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Load Data File",
+            filetypes=[("HBN files", "*.hbn *.py"), ("JSON files", "*.json"), ("All files", "*.*")],
+        )
+        if path:
+            try:
+                text = Path(path).read_text(encoding="utf-8")
+                self._data_input.delete("1.0", tk.END)
+                self._data_input.insert("1.0", text)
+            except OSError as exc:
+                messagebox.showerror("File Error", str(exc))
+
+    def _paste_current(self) -> None:
+        if self._app.current_value is None:
+            messagebox.showinfo("No Data", "No current value loaded.")
+            return
+        from hissbytenotation import dumps
+        try:
+            text = dumps(self._app.current_value, validate=False)
+        except Exception:
+            text = repr(self._app.current_value)
+        self._data_input.delete("1.0", tk.END)
+        self._data_input.insert("1.0", text)
+
+    def _execute(self) -> None:
+        schema_text = self._schema_input.get("1.0", tk.END).strip()
+        data_text = self._data_input.get("1.0", tk.END).strip()
+        if not schema_text:
+            self._status.set("Enter a schema or click an example button.")
+            return
+        if not data_text:
+            self._status.set("Enter data to validate.")
+            return
+        self._status.set("Validating...")
+        self._runner.run(
+            self._do_validate,
+            args=(schema_text, data_text),
+            on_success=self._on_success,
+            on_error=self._on_error,
+        )
+
+    @staticmethod
+    def _do_validate(schema_text: str, data_text: str) -> tuple[bool, str]:
+        try:
+            import cerberus
+        except ImportError:
+            return False, "cerberus is not installed.\nInstall with: uv add cerberus  or  pip install cerberus"
+
+        from hissbytenotation.cli.codecs import parse_value
+        schema = parse_value(schema_text, "hbn")
+        data = parse_value(data_text, "hbn")
+
+        v = cerberus.Validator(schema)
+        valid = v.validate(data)
+        if valid:
+            return True, "✓  VALID\n\nThe document satisfies the schema."
+        else:
+            import json
+            errors_str = json.dumps(v.errors, indent=2, default=str)
+            return False, f"✗  INVALID\n\nValidation errors:\n{errors_str}"
+
+    def _on_success(self, result: tuple[bool, str]) -> None:
+        valid, text = result
+        _output_set(self._output, text)
+        if valid:
+            self._status.set("Validation passed.")
+        else:
+            self._status.set("Validation failed — see errors below.")
+
+    def _on_error(self, exc: Exception) -> None:
+        _output_set(self._output, f"Error: {exc}")
+        self._status.set(f"Validate error: {exc}")
+
+
 # ── Main Application ────────────────────────────────────────────────
 
 class HbnApp:
@@ -1514,6 +1773,7 @@ class HbnApp:
             ("mutate", "Mutate"),
             ("merge", "Merge"),
             ("diff", "Diff"),
+            ("validate", "Validate"),
             ("repl", "REPL"),
             ("generate", "Generate"),
             ("doctor", "Doctor"),
@@ -1562,6 +1822,7 @@ class HbnApp:
             "mutate": MutatePanel,
             "merge": MergePanel,
             "diff": DiffPanel,
+            "validate": ValidatePanel,
             "repl": ReplPanel,
             "generate": GeneratePanel,
             "doctor": DoctorPanel,

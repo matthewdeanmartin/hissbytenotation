@@ -26,7 +26,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-dependencies = []
+dependencies = [
+    "cerberus>=1.3.8",
+]
 
 [project.urls]
 "Bug Tracker" = "https://github.com/matthewdeanmartin/hissbytenotation/issues"
@@ -43,6 +45,7 @@ hissbytenotation-gui = "hissbytenotation.gui.app:launch_gui"
 fmt = ["black"]
 glom = ["glom"]
 diff = []
+validate = ["cerberus"]
 
 
 [dependency-groups]

@@ -12,7 +12,9 @@
       "Bash(uv run:*)",
       "Bash(uv sync:*)",
       "Bash(ls .venv/Scripts/*.exe)",
-      "Bash(ls .venv/Scripts/hbn* .venv/Scripts/hiss*)"
+      "Bash(ls .venv/Scripts/hbn* .venv/Scripts/hiss*)",
+      "Bash(grep -E \"\\\\.py$|tests|examples\")",
+      "Bash(uv add:*)"
     ]
   }
 }

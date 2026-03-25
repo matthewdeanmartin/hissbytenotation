@@ -14,6 +14,7 @@ FILE_IO_ERROR = 8
 STRICT_CONVERSION_REFUSED = 9
 EXTERNAL_TOOL_MISSING = 10
 INTERNAL_ERROR = 11
+VALIDATION_FAILURE = 12
 
 
 class CliError(Exception):
@@ -79,3 +80,9 @@ class MergeConflictError(CliError):
     """Raised when merge inputs conflict under the selected policy."""
 
     exit_code = MERGE_CONFLICT
+
+
+class ValidationFailureError(CliError):
+    """Raised when cerberus schema validation fails."""
+
+    exit_code = VALIDATION_FAILURE
