@@ -67,7 +67,9 @@ jobs:
         run: pip install -e .
 
       - name: Build and install Rust extension
-        run: maturin develop --release --manifest-path rust/Cargo.toml
+        run: |
+          maturin build --release --manifest-path rust/Cargo.toml --out dist
+          python -c "import pathlib, subprocess, sys; wheel = next(pathlib.Path('dist').glob('*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--force-reinstall', str(wheel)])"
 
       - name: Run tests
         run: |

@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "hbn_rust"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.28", features = ["extension-module"] }
+pyo3 = { version = "0.28" }

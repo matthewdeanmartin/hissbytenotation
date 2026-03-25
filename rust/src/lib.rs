@@ -109,18 +109,29 @@ impl<'a> Parser<'a> {
             Some(b'[') => self.parse_list(py),
             Some(b'(') => self.parse_tuple(py),
             Some(b'\'') | Some(b'"') => self.parse_string(py),
-            Some(b'b') if self.pos + 1 < self.input.len()
-                && (self.input[self.pos + 1] == b'\'' || self.input[self.pos + 1] == b'"') =>
+            Some(b'b')
+                if self.pos + 1 < self.input.len()
+                    && (self.input[self.pos + 1] == b'\'' || self.input[self.pos + 1] == b'"') =>
             {
                 self.parse_bytes(py)
             }
             Some(b'T') if self.starts_with(b"True") && self.keyword_boundary(4) => {
                 self.pos += 4;
-                Ok(true.into_pyobject(py).unwrap().to_owned().into_any().unbind())
+                Ok(true
+                    .into_pyobject(py)
+                    .unwrap()
+                    .to_owned()
+                    .into_any()
+                    .unbind())
             }
             Some(b'F') if self.starts_with(b"False") && self.keyword_boundary(5) => {
                 self.pos += 5;
-                Ok(false.into_pyobject(py).unwrap().to_owned().into_any().unbind())
+                Ok(false
+                    .into_pyobject(py)
+                    .unwrap()
+                    .to_owned()
+                    .into_any()
+                    .unbind())
             }
             Some(b'N') if self.starts_with(b"None") && self.keyword_boundary(4) => {
                 self.pos += 4;
@@ -225,8 +236,9 @@ impl<'a> Parser<'a> {
                         let val = u32::from_str_radix(&hex, 16)
                             .map_err(|_| ParseError::new("invalid hex escape", self.pos))?;
                         result.push(
-                            char::from_u32(val)
-                                .ok_or_else(|| ParseError::new("invalid char from hex", self.pos))?,
+                            char::from_u32(val).ok_or_else(|| {
+                                ParseError::new("invalid char from hex", self.pos)
+                            })?,
                         );
                         continue;
                     }
@@ -235,10 +247,10 @@ impl<'a> Parser<'a> {
                         let hex = self.read_hex_chars(4)?;
                         let val = u32::from_str_radix(&hex, 16)
                             .map_err(|_| ParseError::new("invalid unicode escape", self.pos))?;
-                        result.push(
-                            char::from_u32(val)
-                                .ok_or_else(|| ParseError::new("invalid unicode char", self.pos))?,
-                        );
+                        result
+                            .push(char::from_u32(val).ok_or_else(|| {
+                                ParseError::new("invalid unicode char", self.pos)
+                            })?);
                         continue;
                     }
                     b'U' => {
@@ -246,10 +258,10 @@ impl<'a> Parser<'a> {
                         let hex = self.read_hex_chars(8)?;
                         let val = u32::from_str_radix(&hex, 16)
                             .map_err(|_| ParseError::new("invalid unicode escape", self.pos))?;
-                        result.push(
-                            char::from_u32(val)
-                                .ok_or_else(|| ParseError::new("invalid unicode char", self.pos))?,
-                        );
+                        result
+                            .push(char::from_u32(val).ok_or_else(|| {
+                                ParseError::new("invalid unicode char", self.pos)
+                            })?);
                         continue;
                     }
                     c @ b'1'..=b'7' => {
@@ -269,8 +281,9 @@ impl<'a> Parser<'a> {
                         let val = u32::from_str_radix(&oct, 8)
                             .map_err(|_| ParseError::new("invalid octal escape", self.pos))?;
                         result.push(
-                            char::from_u32(val)
-                                .ok_or_else(|| ParseError::new("invalid char from octal", self.pos))?,
+                            char::from_u32(val).ok_or_else(|| {
+                                ParseError::new("invalid char from octal", self.pos)
+                            })?,
                         );
                     }
                     b'\n' => {
@@ -379,8 +392,9 @@ impl<'a> Parser<'a> {
                     b'x' => {
                         self.advance();
                         let hex = self.read_hex_chars(2)?;
-                        let val = u8::from_str_radix(&hex, 16)
-                            .map_err(|_| ParseError::new("invalid hex escape in bytes", self.pos))?;
+                        let val = u8::from_str_radix(&hex, 16).map_err(|_| {
+                            ParseError::new("invalid hex escape in bytes", self.pos)
+                        })?;
                         result.push(val);
                         continue;
                     }
@@ -398,8 +412,9 @@ impl<'a> Parser<'a> {
                                 break;
                             }
                         }
-                        let val = u8::from_str_radix(&oct, 8)
-                            .map_err(|_| ParseError::new("invalid octal escape in bytes", self.pos))?;
+                        let val = u8::from_str_radix(&oct, 8).map_err(|_| {
+                            ParseError::new("invalid octal escape in bytes", self.pos)
+                        })?;
                         result.push(val);
                     }
                     other => {
@@ -430,7 +445,8 @@ impl<'a> Parser<'a> {
                 b'x' | b'X' => {
                     self.pos += 2;
                     while self.pos < self.input.len()
-                        && (self.input[self.pos].is_ascii_hexdigit() || self.input[self.pos] == b'_')
+                        && (self.input[self.pos].is_ascii_hexdigit()
+                            || self.input[self.pos] == b'_')
                     {
                         self.advance();
                     }
@@ -439,7 +455,10 @@ impl<'a> Parser<'a> {
                         .chars()
                         .filter(|c| *c != '_')
                         .collect();
-                    let stripped = num_str.trim_start_matches('-').trim_start_matches("0x").trim_start_matches("0X");
+                    let stripped = num_str
+                        .trim_start_matches('-')
+                        .trim_start_matches("0x")
+                        .trim_start_matches("0X");
                     let val = i64::from_str_radix(stripped, 16)
                         .map_err(|_| ParseError::new("invalid hex number", start))?;
                     let val = if num_str.starts_with('-') { -val } else { val };
@@ -458,7 +477,10 @@ impl<'a> Parser<'a> {
                         .chars()
                         .filter(|c| *c != '_')
                         .collect();
-                    let stripped = num_str.trim_start_matches('-').trim_start_matches("0o").trim_start_matches("0O");
+                    let stripped = num_str
+                        .trim_start_matches('-')
+                        .trim_start_matches("0o")
+                        .trim_start_matches("0O");
                     let val = i64::from_str_radix(stripped, 8)
                         .map_err(|_| ParseError::new("invalid octal number", start))?;
                     let val = if num_str.starts_with('-') { -val } else { val };
@@ -467,7 +489,9 @@ impl<'a> Parser<'a> {
                 b'b' | b'B' => {
                     self.pos += 2;
                     while self.pos < self.input.len()
-                        && (self.input[self.pos] == b'0' || self.input[self.pos] == b'1' || self.input[self.pos] == b'_')
+                        && (self.input[self.pos] == b'0'
+                            || self.input[self.pos] == b'1'
+                            || self.input[self.pos] == b'_')
                     {
                         self.advance();
                     }
@@ -476,7 +500,10 @@ impl<'a> Parser<'a> {
                         .chars()
                         .filter(|c| *c != '_')
                         .collect();
-                    let stripped = num_str.trim_start_matches('-').trim_start_matches("0b").trim_start_matches("0B");
+                    let stripped = num_str
+                        .trim_start_matches('-')
+                        .trim_start_matches("0b")
+                        .trim_start_matches("0B");
                     let val = i64::from_str_radix(stripped, 2)
                         .map_err(|_| ParseError::new("invalid binary number", start))?;
                     let val = if num_str.starts_with('-') { -val } else { val };
@@ -505,10 +532,14 @@ impl<'a> Parser<'a> {
         }
 
         // Exponent
-        if self.pos < self.input.len() && (self.input[self.pos] == b'e' || self.input[self.pos] == b'E') {
+        if self.pos < self.input.len()
+            && (self.input[self.pos] == b'e' || self.input[self.pos] == b'E')
+        {
             is_float = true;
             self.advance();
-            if self.pos < self.input.len() && (self.input[self.pos] == b'+' || self.input[self.pos] == b'-') {
+            if self.pos < self.input.len()
+                && (self.input[self.pos] == b'+' || self.input[self.pos] == b'-')
+            {
                 self.advance();
             }
             while self.pos < self.input.len()
@@ -534,11 +565,14 @@ impl<'a> Parser<'a> {
                 Ok(val) => Ok(val.into_pyobject(py).unwrap().into_any().unbind()),
                 Err(_) => {
                     // Use Python's int() for big integers
-                    let builtins = py.import("builtins")
+                    let builtins = py
+                        .import("builtins")
                         .map_err(|_| ParseError::new("failed to import builtins", start))?;
-                    let int_fn = builtins.getattr("int")
+                    let int_fn = builtins
+                        .getattr("int")
                         .map_err(|_| ParseError::new("failed to get int", start))?;
-                    let result = int_fn.call1((&num_str,))
+                    let result = int_fn
+                        .call1((&num_str,))
                         .map_err(|_| ParseError::new("failed to parse big int", start))?;
                     Ok(result.unbind())
                 }
@@ -580,7 +614,8 @@ impl<'a> Parser<'a> {
 
         let list = PyList::empty(py);
         for item in items {
-            list.append(item).map_err(|_| ParseError::new("failed to append to list", self.pos))?;
+            list.append(item)
+                .map_err(|_| ParseError::new("failed to append to list", self.pos))?;
         }
         Ok(list.into_any().unbind())
     }
@@ -668,8 +703,9 @@ impl<'a> Parser<'a> {
                             self.skip_whitespace();
                             self.expect(b':')?;
                             let val = self.parse_value(py)?;
-                            dict.set_item(&key, &val)
-                                .map_err(|_| ParseError::new("failed to set dict item", self.pos))?;
+                            dict.set_item(&key, &val).map_err(|_| {
+                                ParseError::new("failed to set dict item", self.pos)
+                            })?;
                             self.skip_whitespace();
                         }
                         Some(b'}') => {
@@ -744,11 +780,14 @@ impl<'a> Parser<'a> {
         self.skip_whitespace();
         self.expect(b')')?;
 
-        let builtins = py.import("builtins")
+        let builtins = py
+            .import("builtins")
             .map_err(|_| ParseError::new("failed to import builtins", self.pos))?;
-        let frozenset_fn = builtins.getattr("frozenset")
+        let frozenset_fn = builtins
+            .getattr("frozenset")
             .map_err(|_| ParseError::new("failed to get frozenset", self.pos))?;
-        let result = frozenset_fn.call1((inner,))
+        let result = frozenset_fn
+            .call1((inner,))
             .map_err(|_| ParseError::new("failed to create frozenset from iterable", self.pos))?;
         Ok(result.unbind())
     }
@@ -829,12 +868,44 @@ mod tests {
     fn parses_numeric_variants_and_large_integers() {
         Python::initialize();
         Python::attach(|py| {
-            assert_eq!(loads(py, "0xff").unwrap().bind(py).extract::<i64>().unwrap(), 255);
-            assert_eq!(loads(py, "-0o10").unwrap().bind(py).extract::<i64>().unwrap(), -8);
-            assert_eq!(loads(py, "0b1010_0101").unwrap().bind(py).extract::<i64>().unwrap(), 165);
-            assert_eq!(loads(py, "1_000_000").unwrap().bind(py).extract::<i64>().unwrap(), 1_000_000);
+            assert_eq!(
+                loads(py, "0xff")
+                    .unwrap()
+                    .bind(py)
+                    .extract::<i64>()
+                    .unwrap(),
+                255
+            );
+            assert_eq!(
+                loads(py, "-0o10")
+                    .unwrap()
+                    .bind(py)
+                    .extract::<i64>()
+                    .unwrap(),
+                -8
+            );
+            assert_eq!(
+                loads(py, "0b1010_0101")
+                    .unwrap()
+                    .bind(py)
+                    .extract::<i64>()
+                    .unwrap(),
+                165
+            );
+            assert_eq!(
+                loads(py, "1_000_000")
+                    .unwrap()
+                    .bind(py)
+                    .extract::<i64>()
+                    .unwrap(),
+                1_000_000
+            );
 
-            let float_value = loads(py, "-1.25e2").unwrap().bind(py).extract::<f64>().unwrap();
+            let float_value = loads(py, "-1.25e2")
+                .unwrap()
+                .bind(py)
+                .extract::<f64>()
+                .unwrap();
             assert_eq!(float_value, -125.0);
 
             let big_int = "1234567890123456789012345678901234567890";
@@ -851,10 +922,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let triple = loads(py, r#"'''hello\nworld'''"#).unwrap();
-            assert_eq!(
-                triple.bind(py).extract::<String>().unwrap(),
-                "hello\nworld"
-            );
+            assert_eq!(triple.bind(py).extract::<String>().unwrap(), "hello\nworld");
 
             let bytes_value = loads(py, r#"b'\x68\151'"#).unwrap();
             assert_eq!(bytes_value.bind(py).extract::<Vec<u8>>().unwrap(), b"hi");
@@ -873,13 +941,7 @@ mod tests {
 
             let frozen = loads(py, "frozenset({3, 1, 2})").unwrap();
             assert_eq!(
-                frozen
-                    .bind(py)
-                    .get_type()
-                    .name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
+                frozen.bind(py).get_type().name().unwrap().to_str().unwrap(),
                 "frozenset"
             );
 
