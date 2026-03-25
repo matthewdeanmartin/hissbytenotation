@@ -8,7 +8,11 @@
       "Bash(python -c \":*)",
       "Bash(python -m pytest test/test_rust.py -v)",
       "Bash(python -m pytest test/ -v)",
-      "Bash(python -m benchmark -n 500)"
+      "Bash(python -m benchmark -n 500)",
+      "Bash(uv run:*)",
+      "Bash(uv sync:*)",
+      "Bash(ls .venv/Scripts/*.exe)",
+      "Bash(ls .venv/Scripts/hbn* .venv/Scripts/hiss*)"
     ]
   }
 }

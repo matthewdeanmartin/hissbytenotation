@@ -250,6 +250,7 @@ COMMAND_NAMES = {
     "examples",
     "completion",
     "version",
+    "gui",
 }
 
 
@@ -452,6 +453,11 @@ def build_parser() -> argparse.ArgumentParser:
     version_parser = subparsers.add_parser("version", help="Show the installed version.")
     version_parser.set_defaults(handler=handle_version)
 
+    gui_parser = subparsers.add_parser("gui", help="Launch the graphical interface.")
+    gui_parser.set_defaults(handler=handle_gui)
+
+    parser.add_argument("--gui", action="store_true", help="Launch the graphical interface.")
+
     return parser
 
 
@@ -537,6 +543,11 @@ def build_merge_parent_parser() -> argparse.ArgumentParser:
 
 def dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Dispatch to the selected command handler."""
+    if getattr(args, "gui", False) or args.command == "gui":
+        from hissbytenotation.gui.app import launch_gui
+
+        launch_gui()
+        return 0
     handler = getattr(args, "handler", None)
     if handler is None:
         parser.print_help()
@@ -918,6 +929,14 @@ def build_powershell_completion(
     }}
 }}
 """
+
+
+def handle_gui(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
+    """Launch the graphical interface."""
+    from hissbytenotation.gui.app import launch_gui
+
+    launch_gui()
+    return 0
 
 
 def handle_version(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:

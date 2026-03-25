@@ -759,7 +759,7 @@ wheels = [
 [[package]]
 name = "hissbytenotation"
 version = "0.3.0"
-source = { virtual = "." }
+source = { editable = "." }
 
 [package.optional-dependencies]
 fmt = [

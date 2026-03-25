@@ -23,6 +23,14 @@ The Rust parser (`by_rust=True`) is safe — it only parses literal syntax and n
 
 ## Usage
 
+Learn how to use it with the GUI which demos all the features
+
+```bash
+hissbytenotation gui
+```
+
+Normal usage is as a library.
+
 ```python
 import hissbytenotation as hbn
 
@@ -40,7 +48,7 @@ print(rehydrated)
 
 ## CLI
 
-Phase 5 ships a Bash-first CLI with the `hbn` command:
+It now has a Bash-first CLI with the `hbn` command:
 
 ```bash
 uv run hbn dump --arg "{'mammal': 'cat', 'version': 1}"
@@ -87,7 +95,7 @@ uv run hbn q --glom "{'emails': ('users', ['email'])}" users.hbn
 uv run hbn append users --value "{'email': 'new@example.com'}" users.hbn
 ```
 
-Phase 2 glom commands:
+It now has glom commands, which is a query language for python dicts and types:
 
 - `q` / `query`
 - `get`
@@ -102,7 +110,7 @@ Glom query mode supports:
 - `--glom SPEC` for explicit glom specs written in HBN / Python literal syntax
 - `--spec-file PATH` for reusable glom specs
 
-Phase 3 merge and mutation workflows:
+It supports merge and mutation workflows:
 
 - `merge`
 - merge strategies: `replace`, `shallow`, `deep`, `append-lists`, `set-union-lists`
@@ -117,7 +125,7 @@ uv run hbn set config.port --value 6432 --in-place settings.hbn
 uv run hbn append users --value "{'email': 'new@example.com'}" --backup .bak users.hbn
 ```
 
-Phase 4 discoverability and interactive workflows:
+It supports some discoverability and interactive workflows:
 
 - `repl`
 - `doctor`
@@ -172,7 +180,7 @@ uv run hbn fmt --arg "{'b':2,'a':1}"
 
 `hbn fmt` prefers shelling out to the `black` executable when it is available and falls back to the Python package API when it is installed without the command on `PATH`.
 
-Phase 5 optional extras and helpers:
+It supports optional extras and helpers:
 
 - `fmt` for formatter integration
 - `diff` for canonicalized text diffs

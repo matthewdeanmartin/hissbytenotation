@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "hissbytenotation"
 version = "0.3.0"
@@ -31,6 +35,9 @@ dependencies = []
 [project.scripts]
 hbn = "hissbytenotation.cli:main"
 hissbytenotation = "hissbytenotation.cli:main"
+
+[project.gui-scripts]
+hissbytenotation-gui = "hissbytenotation.gui.app:launch_gui"
 
 [project.optional-dependencies]
 fmt = ["black"]
