@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from hissbytenotation import loads as hbn_loads
+from hissbytenotation.install_hints import all_or_specific_extra_install_hint
 
 from .errors import (
     FileIOCliError,
@@ -31,7 +32,7 @@ def ensure_glom_available() -> None:
     if glom is None:
         raise GlomCliError(
             "Glom integration requires the optional glom extra. "
-            "Install it with `uv sync --extra glom` or `pip install hissbytenotation[glom]`."
+            f"{all_or_specific_extra_install_hint('glom')}"
         )
 
 

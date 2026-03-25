@@ -58,6 +58,8 @@ def test_doctor_json_report(capsys, monkeypatch):
     assert report["package"]["name"] == "hissbytenotation"
     assert "optional_features" in report
     assert "glom" in report["optional_features"]
+    assert 'hissbytenotation[all]' in report["optional_features"]["glom"]["install_hint"]
+    assert 'hissbytenotation[glom]' in report["optional_features"]["glom"]["install_hint"]
     assert "recommendations" in report
     assert stderr == ""
 

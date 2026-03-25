@@ -167,6 +167,8 @@ def test_missing_glom_dependency_returns_clear_error(capsys, monkeypatch):
     assert exit_code == GLOM_FAILURE
     assert stdout == ""
     assert "optional glom extra" in stderr
+    assert "hissbytenotation[all]" in stderr
+    assert "hissbytenotation[glom]" in stderr
 
 
 def test_set_missing_value_flag_returns_parse_failure(capsys, monkeypatch):

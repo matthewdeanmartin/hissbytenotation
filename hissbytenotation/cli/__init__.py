@@ -49,6 +49,7 @@ from hissbytenotation.cli.merge_ops import (
 )
 from hissbytenotation.cli.presenters import apply_default, render_output
 from hissbytenotation.cli.repl import run_repl
+from hissbytenotation.install_hints import all_or_specific_extra_install_hint
 
 black: Any = None
 try:
@@ -761,9 +762,7 @@ def handle_validate(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     try:
         import cerberus  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
     except ImportError as exc:
-        raise ExternalToolError(
-            "Validation requires cerberus. Install with: uv add cerberus  or  pip install cerberus"
-        ) from exc
+        raise ExternalToolError(f"Validation requires cerberus. {all_or_specific_extra_install_hint('validate')}") from exc
 
     value = load_input_value(args)
 
@@ -1237,7 +1236,7 @@ def format_hbn_text(source_text: str) -> str:
     if black_path:
         return format_hbn_text_with_black_command(source_text, black_path)
     if black is None:
-        raise ExternalToolError("Formatting requires black. Install the fmt extra or make sure black is available.")
+        raise ExternalToolError(f"Formatting requires black. {all_or_specific_extra_install_hint('fmt')}")
     try:
         return black.format_str(source_text, mode=black.FileMode())
     except black.InvalidInput as exc:

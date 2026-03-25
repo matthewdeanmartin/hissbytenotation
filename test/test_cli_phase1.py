@@ -3,7 +3,7 @@ import json
 import sys
 
 from hissbytenotation.cli import main
-from hissbytenotation.cli.errors import FALSEY_RESULT, TYPE_MISMATCH, UNSUPPORTED_FORMAT
+from hissbytenotation.cli.errors import EXTERNAL_TOOL_MISSING, FALSEY_RESULT, TYPE_MISMATCH, UNSUPPORTED_FORMAT
 
 
 class FakeStdin(io.StringIO):
@@ -152,6 +152,20 @@ def test_fmt_formats_hbn(capsys, monkeypatch):
     assert exit_code == 0
     assert stdout == '{"b": 2, "a": 1}\n'
     assert stderr == ""
+
+
+def test_fmt_missing_dependency_returns_all_and_specific_hint(capsys, monkeypatch):
+    from hissbytenotation import cli
+
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(cli, "black", None)
+
+    exit_code, stdout, stderr = run_cli(["fmt", "--arg", "{'b':2,'a':1}"], capsys, monkeypatch)
+
+    assert exit_code == EXTERNAL_TOOL_MISSING
+    assert stdout == ""
+    assert 'hissbytenotation[all]' in stderr
+    assert 'hissbytenotation[fmt]' in stderr
 
 
 def test_help_shell_topic(capsys, monkeypatch):

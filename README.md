@@ -21,6 +21,39 @@ sure if they are the same problems that could affect json or other formats.
 
 The Rust parser (`by_rust=True`) is safe — it only parses literal syntax and never executes arbitrary code.
 
+## Installation
+
+Install the base package with:
+
+```bash
+pip install hissbytenotation
+```
+
+To install every optional Python integration in one shot, use:
+
+```bash
+pip install "hissbytenotation[all]"
+```
+
+If you use `uv`, the equivalent command is:
+
+```bash
+uv sync --extra all
+```
+
+Install just one optional feature with one of these extras:
+
+- `fmt` for `hbn fmt` / Black integration: `pip install "hissbytenotation[fmt]"` or `uv sync --extra fmt`
+- `glom` for query and mutation commands: `pip install "hissbytenotation[glom]"` or `uv sync --extra glom`
+- `validate` for Cerberus-backed schema validation: `pip install "hissbytenotation[validate]"` or `uv sync --extra validate`
+
+The optional Rust speedups are bundled in supported platform wheels for `hissbytenotation`; if your platform does not
+have a wheel yet, install the package normally and fall back to the pure-Python path, or build the extension locally:
+
+```bash
+cd rust && maturin develop --release
+```
+
 ## Usage
 
 Learn how to use it with the GUI which demos all the features
@@ -86,7 +119,7 @@ Useful shell-oriented output flags:
 - `--bash-assoc NAME`
 - `--default VALUE`
 
-For nested traversal and mutation, install the optional glom extra:
+For nested traversal and mutation, install `hissbytenotation[all]` or just the `glom` extra:
 
 ```bash
 uv sync --extra glom
@@ -171,7 +204,7 @@ uv run hbn completion fish
 uv run hbn completion powershell
 ```
 
-For formatter support, install the optional extra and use `hbn fmt`:
+For formatter support, install `hissbytenotation[all]` or just the `fmt` extra and use `hbn fmt`:
 
 ```bash
 uv sync --extra fmt
@@ -203,7 +236,7 @@ The `diff` command:
 
 ### Rust-accelerated parsing
 
-Install `hissbytenotation` normally. Platform wheels can include the optional Rust parser for a ~14x speedup over `ast.literal_eval`; source installs fall back to the pure-Python implementation:
+Install `hissbytenotation` normally, or `pip install "hissbytenotation[all]"` if you also want all Python extras. Platform wheels can include the optional Rust parser for a ~14x speedup over `ast.literal_eval`; source installs fall back to the pure-Python implementation:
 
 ```bash
 pip install hissbytenotation

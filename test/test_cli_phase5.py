@@ -1,5 +1,6 @@
 import io
 import json
+import builtins
 import sys
 from types import SimpleNamespace
 
@@ -84,6 +85,25 @@ def test_fmt_prefers_black_executable_when_available(capsys, monkeypatch, tmp_pa
     assert exit_code == 0
     assert stdout == "{'b': 2, 'a': 1}\n"
     assert stderr == ""
+
+
+def test_validate_missing_dependency_returns_all_and_specific_hint(capsys, monkeypatch):
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "cerberus":
+            raise ImportError("missing test module")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    exit_code, stdout, stderr = run_cli(
+        ["validate", "--arg", "{'a': 1}", "--schema", "{'a': {'type': 'integer'}}"], capsys, monkeypatch
+    )
+
+    assert exit_code == EXTERNAL_TOOL_MISSING
+    assert stdout == ""
+    assert 'hissbytenotation[all]' in stderr
+    assert 'hissbytenotation[validate]' in stderr
 
 
 def test_doctor_reports_diff_capability(capsys, monkeypatch):

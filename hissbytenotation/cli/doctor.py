@@ -8,6 +8,11 @@ import shutil
 import sys
 from typing import Any
 
+from hissbytenotation.install_hints import (
+    all_or_specific_extra_install_hint,
+    rust_install_hint,
+)
+
 
 def collect_doctor_report() -> dict[str, Any]:
     """Collect a structured capability report for the CLI."""
@@ -17,7 +22,7 @@ def collect_doctor_report() -> dict[str, Any]:
             module_name="black",
             distribution_name="black",
             summary="HBN formatter support via `hbn fmt`.",
-            install_hint="uv sync --extra fmt",
+            install_hint=all_or_specific_extra_install_hint("fmt"),
         ),
         "diff": {
             "available": True,
@@ -30,19 +35,19 @@ def collect_doctor_report() -> dict[str, Any]:
             module_name="glom",
             distribution_name="glom",
             summary="Nested query and mutation commands such as `q`, `get`, and `set`.",
-            install_hint="uv sync --extra glom",
+            install_hint=all_or_specific_extra_install_hint("glom"),
         ),
         "rust": _module_check(
             module_name="hissbytenotation.hbn_rust",
             distribution_name="hissbytenotation",
             summary="Rust-accelerated HBN parsing.",
-            install_hint="Install a wheel build of hissbytenotation for your platform, or build the optional extension locally with maturin.",
+            install_hint=rust_install_hint(),
         ),
         "validate": _module_check(
             module_name="cerberus",
             distribution_name="cerberus",
             summary="Schema validation via `hbn validate` using cerberus schemas.",
-            install_hint="uv sync --extra validate",
+            install_hint=all_or_specific_extra_install_hint("validate"),
         ),
     }
     tools = {

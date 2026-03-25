@@ -16,6 +16,8 @@ import tkinter.ttk as ttk
 from pathlib import Path
 from typing import Any
 
+from hissbytenotation.install_hints import all_or_specific_extra_install_hint
+
 # ── Dark theme colours (Catppuccin Mocha inspired) ──────────────────
 _CLR_OK = "#22c55e"
 _CLR_WARN = "#eab308"
@@ -416,7 +418,7 @@ class DashboardPanel(_BasePanel):
 
         raw = dumps(value, validate=False)
         if importlib.util.find_spec("black") is None:
-            raise RuntimeError("black not installed — run: uv sync --extra fmt")
+            raise RuntimeError(f"black not installed. {all_or_specific_extra_install_hint('fmt')}")
         import black  # type: ignore[import]
 
         return black.format_str(raw, mode=black.FileMode(line_length=120))
@@ -429,7 +431,7 @@ class DashboardPanel(_BasePanel):
         msg = str(exc)
         if "black not installed" in msg:
             self._fmt_status.configure(
-                text="Formatter not installed.  Run:  uv sync --extra fmt",
+                text=f"Formatter not installed. {all_or_specific_extra_install_hint('fmt')}",
                 fg=_CLR_WARN,
             )
         else:
@@ -1819,7 +1821,7 @@ class ValidatePanel(_BasePanel):
         try:
             import cerberus
         except ImportError:
-            return False, "cerberus is not installed.\nInstall with: uv add cerberus  or  pip install cerberus"
+            return False, f"cerberus is not installed.\n{all_or_specific_extra_install_hint('validate')}"
 
         from hissbytenotation.cli.codecs import parse_value
 

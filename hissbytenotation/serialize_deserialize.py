@@ -8,6 +8,7 @@ from types import ModuleType
 from typing import Any, Dict
 
 from hissbytenotation.deserialize_by_import import loads_via_import
+from hissbytenotation.install_hints import rust_install_hint
 from hissbytenotation.supported_types import RecursiveSerializable
 
 
@@ -22,10 +23,7 @@ def _load_rust_parser_module() -> ModuleType:
             return importlib.import_module(module_name)
         except ImportError:
             continue
-    raise ImportError(
-        "Optional Rust acceleration is unavailable. Reinstall hissbytenotation from a platform wheel "
-        "or build the extension locally with: cd rust && maturin develop --release"
-    )
+    raise ImportError(f"Optional Rust acceleration is unavailable. {rust_install_hint()}")
 
 
 def dumps(python_object: Any, validate: bool = True) -> str:
