@@ -139,7 +139,7 @@ TOPIC_HELP = {
     - black / fmt support
     - diff helper support
     - glom integration
-    - hbn_rust acceleration
+    - Rust acceleration
     - uv and git on PATH
 """,
     "aliases": """Command aliases:

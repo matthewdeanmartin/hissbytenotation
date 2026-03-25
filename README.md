@@ -203,11 +203,11 @@ The `diff` command:
 
 ### Rust-accelerated parsing
 
-Install the `hbn_rust` package for a ~14x speedup over `ast.literal_eval`:
+Install `hissbytenotation` normally. Platform wheels can include the optional Rust parser for a ~14x speedup over `ast.literal_eval`; source installs fall back to the pure-Python implementation:
 
 ```bash
-pip install hbn-rust
-# or build from source:
+pip install hissbytenotation
+# or build the optional extension from source:
 cd rust && maturin develop --release
 ```
 
@@ -222,7 +222,7 @@ structures than ast.literal_eval can handle.
 
 Because ast.literal_eval is so slow, there are other options for deserialization:
 
-- **Rust parser** (`by_rust=True`): ~14x faster than ast.literal_eval. Safe — no code execution. Requires `hbn_rust`.
+- **Rust parser** (`by_rust=True`): ~14x faster than ast.literal_eval. Safe — no code execution. Available when the optional Rust extension is present.
 - **default**: ast.literal_eval with validation enabled. Very slow, very safe.
 - **eval** (`by_eval=True`): Slow, only for trusted data.
 - **exec** (`by_exec=True`): Slow, only for trusted data.

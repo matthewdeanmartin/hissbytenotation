@@ -3,10 +3,52 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "hbn_rust"
-version = "0.1.0"
-description = "Rust-accelerated parser for Python literal expressions (hissbytenotation)"
+name = "hissbytenotation"
+version = "0.3.0"
+description = "Serialize and deserialize data to ordinary python source notation (hbn)"
+authors = [
+    {name = "Matthew Martin", email = "matthewdeanmartin@gmail.com"},
+]
+license = {text = "MIT"}
+readme = "../README.md"
 requires-python = ">=3.8"
+keywords = ["serializer", "deserializer", "hbn",]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "cerberus>=1.3.8",
+]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/matthewdeanmartin/hissbytenotation/issues"
+"Change Log" = "https://github.com/matthewdeanmartin/hissbytenotation/blob/main/CHANGES.md"
+
+[project.scripts]
+hbn = "hissbytenotation.cli:main"
+hissbytenotation = "hissbytenotation.cli:main"
+
+[project.gui-scripts]
+hissbytenotation-gui = "hissbytenotation.gui.app:launch_gui"
+
+[project.optional-dependencies]
+fmt = ["black"]
+glom = ["glom"]
+diff = []
+validate = ["cerberus"]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
+python-source = ".."
+python-packages = ["hissbytenotation"]
+module-name = "hissbytenotation.hbn_rust"

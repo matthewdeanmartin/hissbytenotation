@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-wheels:
-    name: Wheels / ${{ matrix.name }}
+    name: hissbytenotation wheels / ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -62,7 +62,7 @@ jobs:
           retention-days: 7
 
   build-sdist:
-    name: Source distribution
+    name: hissbytenotation source distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,8 +78,8 @@ jobs:
 
       - name: Build sdist
         run: |
-          pip install maturin
-          cd rust && maturin sdist --out ../dist
+          pip install build
+          python -m build --sdist
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4

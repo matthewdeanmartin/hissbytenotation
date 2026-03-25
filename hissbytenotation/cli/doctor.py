@@ -33,10 +33,10 @@ def collect_doctor_report() -> dict[str, Any]:
             install_hint="uv sync --extra glom",
         ),
         "rust": _module_check(
-            module_name="hbn_rust",
-            distribution_name="hbn-rust",
+            module_name="hissbytenotation.hbn_rust",
+            distribution_name="hissbytenotation",
             summary="Rust-accelerated HBN parsing.",
-            install_hint="pip install hbn-rust",
+            install_hint="Install a wheel build of hissbytenotation for your platform, or build the optional extension locally with maturin.",
         ),
         "validate": _module_check(
             module_name="cerberus",

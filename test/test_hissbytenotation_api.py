@@ -1,5 +1,5 @@
 import ast
-import builtins
+import importlib
 import sys
 import types
 
@@ -93,21 +93,23 @@ def test_loads_by_import_reloads_updated_contents(tmp_path, monkeypatch):
 def test_loads_by_rust_uses_extension_module_when_available(monkeypatch):
     rust_module = types.ModuleType("hbn_rust")
     rust_module.loads = lambda source_code: {"parsed": source_code}
+    monkeypatch.setitem(sys.modules, "hissbytenotation.hbn_rust", rust_module)
     monkeypatch.setitem(sys.modules, "hbn_rust", rust_module)
 
     assert hbn.loads("{'value': 1}", by_rust=True) == {"parsed": "{'value': 1}"}
 
 
 def test_loads_by_rust_raises_helpful_error_when_extension_missing(monkeypatch):
-    real_import = builtins.__import__
+    real_import_module = importlib.import_module
 
-    def fake_import(name, *args, **kwargs):
-        if name == "hbn_rust":
+    def fake_import_module(name, *args, **kwargs):
+        if name in {"hbn_rust", "hissbytenotation.hbn_rust"}:
             raise ImportError("missing test module")
-        return real_import(name, *args, **kwargs)
+        return real_import_module(name, *args, **kwargs)
 
+    monkeypatch.delitem(sys.modules, "hissbytenotation.hbn_rust", raising=False)
     monkeypatch.delitem(sys.modules, "hbn_rust", raising=False)
-    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(importlib, "import_module", fake_import_module)
 
-    with pytest.raises(ImportError, match="hbn_rust is not installed"):
+    with pytest.raises(ImportError, match="Optional Rust acceleration is unavailable"):
         hbn.loads("[]", by_rust=True)

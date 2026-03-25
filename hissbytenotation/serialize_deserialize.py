@@ -3,6 +3,8 @@
 """
 
 import ast
+import importlib
+from types import ModuleType
 from typing import Any, Dict
 
 from hissbytenotation.deserialize_by_import import loads_via_import
@@ -11,6 +13,19 @@ from hissbytenotation.supported_types import RecursiveSerializable
 
 class HissByteNotationException(Exception):
     """Exceptions from hissbytenotation library"""
+
+
+def _load_rust_parser_module() -> ModuleType:
+    """Import the optional Rust parser from the packaged wheel or local dev builds."""
+    for module_name in ("hissbytenotation.hbn_rust", "hbn_rust"):
+        try:
+            return importlib.import_module(module_name)
+        except ImportError:
+            continue
+    raise ImportError(
+        "Optional Rust acceleration is unavailable. Reinstall hissbytenotation from a platform wheel "
+        "or build the extension locally with: cd rust && maturin develop --release"
+    )
 
 
 def dumps(python_object: Any, validate: bool = True) -> str:
@@ -45,17 +60,13 @@ def loads(
 
     Args:
     source_code (str): A string containing a Python literal expression.
-    by_rust (bool): Use the Rust-accelerated parser (requires hbn_rust to be installed).
+    by_rust (bool): Use the optional Rust-accelerated parser when it is available.
 
     Returns:
     The original Python object.
     """
     if by_rust:
-        try:
-            import hbn_rust  # type: ignore[import-not-found, import-untyped]  # pylint: disable=import-outside-toplevel
-        except ImportError as e:
-            raise ImportError("hbn_rust is not installed. Install it with: cd rust && maturin develop --release") from e
-        return hbn_rust.loads(source_code)
+        return _load_rust_parser_module().loads(source_code)
     if by_import:
         return loads_via_import(source_code)
     if by_exec:

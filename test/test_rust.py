@@ -1,13 +1,18 @@
 """Tests for the Rust-accelerated parser."""
 
+import importlib
+
 import pytest
 
-try:
-    import hbn_rust
+RUST_MODULE = None
+for module_name in ("hissbytenotation.hbn_rust", "hbn_rust"):
+    try:
+        RUST_MODULE = importlib.import_module(module_name)
+        break
+    except ImportError:
+        continue
 
-    HAS_RUST = True
-except ImportError:
-    HAS_RUST = False
+HAS_RUST = RUST_MODULE is not None
 
 import hissbytenotation as hbn
 from test.generate import generate_test_data
@@ -72,27 +77,27 @@ class TestRustParser:
         assert restored == data
 
     def test_negative_numbers(self):
-        assert hbn_rust.loads("-42") == -42
-        assert hbn_rust.loads("-3.14") == -3.14
+        assert RUST_MODULE.loads("-42") == -42
+        assert RUST_MODULE.loads("-3.14") == -3.14
 
     def test_empty_collections(self):
-        assert hbn_rust.loads("{}") == {}
-        assert hbn_rust.loads("[]") == []
-        assert hbn_rust.loads("()") == ()
+        assert RUST_MODULE.loads("{}") == {}
+        assert RUST_MODULE.loads("[]") == []
+        assert RUST_MODULE.loads("()") == ()
 
     def test_single_element_tuple(self):
-        assert hbn_rust.loads("(1,)") == (1,)
+        assert RUST_MODULE.loads("(1,)") == (1,)
 
     def test_nested_quotes(self):
-        assert hbn_rust.loads("'hello \\'world\\''") == "hello 'world'"
+        assert RUST_MODULE.loads("'hello \\'world\\''") == "hello 'world'"
 
     def test_string_escapes(self):
-        assert hbn_rust.loads(r"'hello\nworld'") == "hello\nworld"
-        assert hbn_rust.loads(r"'tab\there'") == "tab\there"
+        assert RUST_MODULE.loads(r"'hello\nworld'") == "hello\nworld"
+        assert RUST_MODULE.loads(r"'tab\there'") == "tab\there"
 
     def test_trailing_commas(self):
-        assert hbn_rust.loads("[1, 2, 3,]") == [1, 2, 3]
-        assert hbn_rust.loads("{'a': 1, 'b': 2,}") == {"a": 1, "b": 2}
+        assert RUST_MODULE.loads("[1, 2, 3,]") == [1, 2, 3]
+        assert RUST_MODULE.loads("{'a': 1, 'b': 2,}") == {"a": 1, "b": 2}
 
     def test_matches_ast_literal_eval(self):
         """Verify Rust parser produces identical results to ast.literal_eval."""
@@ -118,6 +123,6 @@ class TestRustParser:
             "(42,)",
         ]
         for case in test_cases:
-            rust_result = hbn_rust.loads(case)
+            rust_result = RUST_MODULE.loads(case)
             py_result = ast.literal_eval(case)
             assert rust_result == py_result, f"Mismatch for {case!r}: rust={rust_result!r} vs py={py_result!r}"
