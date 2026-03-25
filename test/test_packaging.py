@@ -14,6 +14,19 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _supports_tkinter(python_executable: str) -> bool:
+    completed = subprocess.run(
+        [python_executable, "-c", "import tkinter"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return completed.returncode == 0
+
+
 def _run_checked(command: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(
         command,
@@ -91,9 +104,19 @@ def test_rust_wheel_includes_python_package_contents(tmp_path: Path) -> None:
     import_check = (
         f"import sys; "
         f"sys.path.insert(0, r'{install_dir}'); "
-        f"import hissbytenotation, hissbytenotation.cli, hissbytenotation.gui.app; "
+        f"import hissbytenotation, hissbytenotation.cli; "
         f"from hissbytenotation.cli import main; "
         f"sys.argv=['hbn', '--help']; "
         f"main()"
     )
     _run_checked([sys.executable, "-c", import_check], cwd=REPO_ROOT)
+
+    if not _supports_tkinter(sys.executable):
+        pytest.skip("tkinter is unavailable in this Python build")
+
+    gui_import_check = (
+        f"import sys; "
+        f"sys.path.insert(0, r'{install_dir}'); "
+        f"import hissbytenotation.gui.app"
+    )
+    _run_checked([sys.executable, "-c", gui_import_check], cwd=REPO_ROOT)
