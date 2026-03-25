@@ -4,6 +4,8 @@ Single-file GUI following the architecture spec in spec/tkinter.md.
 Panels: Dashboard, Browse, Query, Mutate, Merge, Diff, Validate, REPL, Generate, Doctor.
 """
 
+# pylint: disable=import-outside-toplevel,too-many-ancestors,broad-exception-caught
+
 from __future__ import annotations
 
 import threading
@@ -38,6 +40,7 @@ _FONT_CHEAT = ("Consolas", 9)
 
 # ── Background runner ───────────────────────────────────────────────
 
+
 class _BackgroundRunner:
     """Run functions off the UI thread and post results back via root.after."""
 
@@ -52,6 +55,8 @@ class _BackgroundRunner:
         on_success: Any = None,
         on_error: Any = None,
     ) -> None:
+        """Run a callable on a worker thread and marshal callbacks to Tk."""
+
         def _worker() -> None:
             try:
                 result = func(*args)
@@ -67,6 +72,7 @@ class _BackgroundRunner:
 
 
 # ── Reusable widget helpers ─────────────────────────────────────────
+
 
 def _make_tree(parent: tk.Widget, columns: list[tuple[str, str, int]], height: int = 12) -> ttk.Treeview:
     """Create a themed treeview with scrollbar and colour tags."""
@@ -170,15 +176,15 @@ def _output_set(text_widget: tk.Text, content: str) -> None:
 
 def _make_toolbar(parent: tk.Widget) -> tk.Frame:
     """Create a horizontal toolbar frame."""
-    bar = tk.Frame(parent, bg=_CLR_BG)
-    bar.pack(fill=tk.X, padx=8, pady=4)
-    return bar
+    toolbar = tk.Frame(parent, bg=_CLR_BG)
+    toolbar.pack(fill=tk.X, padx=8, pady=4)
+    return toolbar
 
 
-def _toolbar_btn(bar: tk.Frame, text: str, command: Any) -> tk.Button:
+def _toolbar_btn(toolbar: tk.Frame, text: str, command: Any) -> tk.Button:
     """Create a themed button inside a toolbar."""
     btn = tk.Button(
-        bar,
+        toolbar,
         text=text,
         command=command,
         bg=_CLR_BTN,
@@ -235,8 +241,14 @@ def _make_cheat_panel(parent: tk.Widget, title: str, content: str, width: int = 
     container.pack_propagate(False)
 
     heading = tk.Label(
-        container, text=title, bg=_CLR_SIDEBAR, fg=_CLR_ACCENT,
-        font=_FONT_UI_BOLD, anchor=tk.W, padx=8, pady=6,
+        container,
+        text=title,
+        bg=_CLR_SIDEBAR,
+        fg=_CLR_ACCENT,
+        font=_FONT_UI_BOLD,
+        anchor=tk.W,
+        padx=8,
+        pady=6,
     )
     heading.pack(fill=tk.X)
 
@@ -263,6 +275,7 @@ def _make_cheat_panel(parent: tk.Widget, title: str, content: str, width: int = 
 
 
 # ── Base panel ──────────────────────────────────────────────────────
+
 
 class _BasePanel(tk.Frame):
     """Base class for all panels."""
@@ -365,6 +378,7 @@ class DashboardPanel(_BasePanel):
         if value is None:
             return
         from hissbytenotation import dumps
+
         try:
             text = dumps(value, validate=False)
         except Exception:
@@ -397,11 +411,14 @@ class DashboardPanel(_BasePanel):
     @staticmethod
     def _do_format(value: Any) -> str:
         import importlib.util
+
         from hissbytenotation import dumps
+
         raw = dumps(value, validate=False)
         if importlib.util.find_spec("black") is None:
             raise RuntimeError("black not installed — run: uv sync --extra fmt")
         import black  # type: ignore[import]
+
         return black.format_str(raw, mode=black.FileMode(line_length=120))
 
     def _on_format_success(self, text: str) -> None:
@@ -412,13 +429,15 @@ class DashboardPanel(_BasePanel):
         msg = str(exc)
         if "black not installed" in msg:
             self._fmt_status.configure(
-                text="Formatter not installed.  Run:  uv sync --extra fmt", fg=_CLR_WARN,
+                text="Formatter not installed.  Run:  uv sync --extra fmt",
+                fg=_CLR_WARN,
             )
         else:
             self._fmt_status.configure(text=f"Format error: {msg}", fg=_CLR_ERR)
 
 
 # ── Browse Panel ────────────────────────────────────────────────────
+
 
 class BrowsePanel(_BasePanel):
     """Load and view HBN files."""
@@ -437,13 +456,27 @@ class BrowsePanel(_BasePanel):
         opt_bar = _make_toolbar(self)
         self._pretty_var = tk.BooleanVar(value=True)
         tk.Checkbutton(
-            opt_bar, text="Pretty", variable=self._pretty_var, command=self._refresh,
-            bg=_CLR_BG, fg=_CLR_FG, selectcolor=_CLR_BTN, activebackground=_CLR_BG, font=_FONT_UI,
+            opt_bar,
+            text="Pretty",
+            variable=self._pretty_var,
+            command=self._refresh,
+            bg=_CLR_BG,
+            fg=_CLR_FG,
+            selectcolor=_CLR_BTN,
+            activebackground=_CLR_BG,
+            font=_FONT_UI,
         ).pack(side=tk.LEFT, padx=4)
         self._sort_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
-            opt_bar, text="Sort Keys", variable=self._sort_var, command=self._refresh,
-            bg=_CLR_BG, fg=_CLR_FG, selectcolor=_CLR_BTN, activebackground=_CLR_BG, font=_FONT_UI,
+            opt_bar,
+            text="Sort Keys",
+            variable=self._sort_var,
+            command=self._refresh,
+            bg=_CLR_BG,
+            fg=_CLR_FG,
+            selectcolor=_CLR_BTN,
+            activebackground=_CLR_BG,
+            font=_FONT_UI,
         ).pack(side=tk.LEFT, padx=4)
 
         # Path label
@@ -460,7 +493,12 @@ class BrowsePanel(_BasePanel):
     def _open_file(self) -> None:
         path = filedialog.askopenfilename(
             title="Open File",
-            filetypes=[("HBN files", "*.hbn *.py"), ("JSON files", "*.json"), ("TOML files", "*.toml"), ("All files", "*.*")],
+            filetypes=[
+                ("HBN files", "*.hbn *.py"),
+                ("JSON files", "*.json"),
+                ("TOML files", "*.toml"),
+                ("All files", "*.*"),
+            ],
         )
         if path:
             self._app.load_file(path)
@@ -489,6 +527,7 @@ class BrowsePanel(_BasePanel):
     @staticmethod
     def _do_save(value: Any, path: str, fmt: str, pretty: bool, sort_keys: bool) -> None:
         from hissbytenotation.cli.codecs import render_value
+
         text = render_value(value, fmt, pretty=pretty, sort_keys=sort_keys)
         if text and not text.endswith("\n"):
             text += "\n"
@@ -518,6 +557,7 @@ class BrowsePanel(_BasePanel):
     @staticmethod
     def _render_value(value: Any, fmt: str, pretty: bool, sort_keys: bool) -> str:
         from hissbytenotation.cli.codecs import render_value
+
         return render_value(value, fmt, pretty=pretty, sort_keys=sort_keys)
 
 
@@ -582,7 +622,12 @@ class QueryPanel(_BasePanel):
         path_bar = _make_toolbar(work)
         _make_label(path_bar, "Path:").pack(side=tk.LEFT, padx=(0, 4))
         self._path_entry = tk.Entry(
-            path_bar, bg=_CLR_BG_ALT, fg=_CLR_FG, insertbackground=_CLR_FG, font=_FONT_MONO, width=40,
+            path_bar,
+            bg=_CLR_BG_ALT,
+            fg=_CLR_FG,
+            insertbackground=_CLR_FG,
+            font=_FONT_MONO,
+            width=40,
         )
         self._path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
         self._path_entry.bind("<Return>", lambda _: self._run_query())
@@ -592,7 +637,12 @@ class QueryPanel(_BasePanel):
         spec_bar = _make_toolbar(work)
         _make_label(spec_bar, "Glom Spec:").pack(side=tk.LEFT, padx=(0, 4))
         self._spec_entry = tk.Entry(
-            spec_bar, bg=_CLR_BG_ALT, fg=_CLR_FG, insertbackground=_CLR_FG, font=_FONT_MONO, width=40,
+            spec_bar,
+            bg=_CLR_BG_ALT,
+            fg=_CLR_FG,
+            insertbackground=_CLR_FG,
+            font=_FONT_MONO,
+            width=40,
         )
         self._spec_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
         self._spec_entry.bind("<Return>", lambda _: self._run_glom_query())
@@ -641,6 +691,7 @@ class QueryPanel(_BasePanel):
     @staticmethod
     def _render_doc(value: Any) -> str:
         from hissbytenotation.cli.codecs import render_value
+
         return render_value(value, "hbn", pretty=True)
 
     def _run_query(self) -> None:
@@ -671,8 +722,9 @@ class QueryPanel(_BasePanel):
 
     @staticmethod
     def _do_query(value: Any, path_text: str | None, spec_text: str | None, fmt: str) -> str:
-        from hissbytenotation.cli.glom_integration import query_value
         from hissbytenotation.cli.codecs import render_value
+        from hissbytenotation.cli.glom_integration import query_value
+
         result = query_value(value, path_text=path_text, spec_text=spec_text)
         return render_value(result, fmt, pretty=True)
 
@@ -755,15 +807,27 @@ class MutatePanel(_BasePanel):
         self._op_var = tk.StringVar(value="set")
         for op in ["set", "del", "append", "insert"]:
             tk.Radiobutton(
-                op_bar, text=op, variable=self._op_var, value=op,
-                bg=_CLR_BG, fg=_CLR_FG, selectcolor=_CLR_BTN, activebackground=_CLR_BG, font=_FONT_UI,
+                op_bar,
+                text=op,
+                variable=self._op_var,
+                value=op,
+                bg=_CLR_BG,
+                fg=_CLR_FG,
+                selectcolor=_CLR_BTN,
+                activebackground=_CLR_BG,
+                font=_FONT_UI,
             ).pack(side=tk.LEFT, padx=4)
 
         # Path
         path_bar = _make_toolbar(work)
         _make_label(path_bar, "Path:").pack(side=tk.LEFT, padx=(0, 4))
         self._path_entry = tk.Entry(
-            path_bar, bg=_CLR_BG_ALT, fg=_CLR_FG, insertbackground=_CLR_FG, font=_FONT_MONO, width=40,
+            path_bar,
+            bg=_CLR_BG_ALT,
+            fg=_CLR_FG,
+            insertbackground=_CLR_FG,
+            font=_FONT_MONO,
+            width=40,
         )
         self._path_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
 
@@ -771,7 +835,12 @@ class MutatePanel(_BasePanel):
         value_bar = _make_toolbar(work)
         _make_label(value_bar, "Value (HBN):").pack(side=tk.LEFT, padx=(0, 4))
         self._value_entry = tk.Entry(
-            value_bar, bg=_CLR_BG_ALT, fg=_CLR_FG, insertbackground=_CLR_FG, font=_FONT_MONO, width=40,
+            value_bar,
+            bg=_CLR_BG_ALT,
+            fg=_CLR_FG,
+            insertbackground=_CLR_FG,
+            font=_FONT_MONO,
+            width=40,
         )
         self._value_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
 
@@ -779,7 +848,12 @@ class MutatePanel(_BasePanel):
         idx_bar = _make_toolbar(work)
         _make_label(idx_bar, "Index (insert only):").pack(side=tk.LEFT, padx=(0, 4))
         self._index_entry = tk.Entry(
-            idx_bar, bg=_CLR_BG_ALT, fg=_CLR_FG, insertbackground=_CLR_FG, font=_FONT_MONO, width=10,
+            idx_bar,
+            bg=_CLR_BG_ALT,
+            fg=_CLR_FG,
+            insertbackground=_CLR_FG,
+            font=_FONT_MONO,
+            width=10,
         )
         self._index_entry.pack(side=tk.LEFT, padx=4)
         self._index_entry.insert(0, "0")
@@ -796,6 +870,7 @@ class MutatePanel(_BasePanel):
 
     def _show_current(self) -> None:
         from hissbytenotation import dumps
+
         value = self._app.current_value
         try:
             text = dumps(value, validate=False)
@@ -824,8 +899,14 @@ class MutatePanel(_BasePanel):
 
     @staticmethod
     def _do_mutate(value: Any, op: str, path_text: str, value_text: str, index_text: str) -> Any:
-        from hissbytenotation.cli.glom_integration import set_value, delete_value, append_value, insert_value
         from hissbytenotation.cli.codecs import parse_value
+        from hissbytenotation.cli.glom_integration import (
+            append_value,
+            delete_value,
+            insert_value,
+            set_value,
+        )
+
         if op == "set":
             new_val = parse_value(value_text, "hbn")
             return set_value(value, path_text, new_val)
@@ -852,6 +933,7 @@ class MutatePanel(_BasePanel):
 
 # ── Merge Panel ─────────────────────────────────────────────────────
 
+
 class MergePanel(_BasePanel):
     """Merge two data sources."""
 
@@ -864,6 +946,7 @@ class MergePanel(_BasePanel):
         self._left_input = _make_input(self, height=6)
         if app.current_value is not None:
             from hissbytenotation import dumps
+
             try:
                 self._left_input.insert("1.0", dumps(app.current_value, validate=False))
             except Exception:
@@ -880,12 +963,17 @@ class MergePanel(_BasePanel):
         opt_bar = _make_toolbar(self)
         _make_label(opt_bar, "Strategy:").pack(side=tk.LEFT, padx=(0, 4))
         self._strategy_var = tk.StringVar(value="deep")
-        from hissbytenotation.cli.merge_ops import MERGE_STRATEGIES, CONFLICT_POLICIES
-        strategy_combo = ttk.Combobox(opt_bar, textvariable=self._strategy_var, values=list(MERGE_STRATEGIES), state="readonly", width=16)
+        from hissbytenotation.cli.merge_ops import CONFLICT_POLICIES, MERGE_STRATEGIES
+
+        strategy_combo = ttk.Combobox(
+            opt_bar, textvariable=self._strategy_var, values=list(MERGE_STRATEGIES), state="readonly", width=16
+        )
         strategy_combo.pack(side=tk.LEFT, padx=4)
         _make_label(opt_bar, "Conflict:").pack(side=tk.LEFT, padx=(8, 4))
         self._conflict_var = tk.StringVar(value="error")
-        conflict_combo = ttk.Combobox(opt_bar, textvariable=self._conflict_var, values=list(CONFLICT_POLICIES), state="readonly", width=12)
+        conflict_combo = ttk.Combobox(
+            opt_bar, textvariable=self._conflict_var, values=list(CONFLICT_POLICIES), state="readonly", width=12
+        )
         conflict_combo.pack(side=tk.LEFT, padx=4)
         _toolbar_btn(opt_bar, "Merge", self._execute_merge)
 
@@ -914,8 +1002,10 @@ class MergePanel(_BasePanel):
     @staticmethod
     def _do_generate_random() -> str:
         import random
-        from hissbytenotation.gui.sample_data import GENERATORS
+
         from hissbytenotation.cli.codecs import render_value
+        from hissbytenotation.gui.sample_data import GENERATORS
+
         gen_func = random.choice(list(GENERATORS.values()))
         value = gen_func()
         return render_value(value, "hbn", pretty=True)
@@ -943,6 +1033,7 @@ class MergePanel(_BasePanel):
     def _do_merge(left_text: str, right_text: str, strategy: str, conflict: str) -> tuple[Any, str]:
         from hissbytenotation.cli.codecs import parse_value, render_value
         from hissbytenotation.cli.merge_ops import merge_values
+
         left = parse_value(left_text, "hbn")
         right = parse_value(right_text, "hbn")
         result = merge_values(left, right, strategy=strategy, conflict=conflict)
@@ -960,6 +1051,7 @@ class MergePanel(_BasePanel):
 
 
 # ── Diff Panel ──────────────────────────────────────────────────────
+
 
 class DiffPanel(_BasePanel):
     """Compare two data sources."""
@@ -989,8 +1081,15 @@ class DiffPanel(_BasePanel):
         _make_label(opt_bar, "Canonical:").pack(side=tk.LEFT, padx=(0, 4))
         for fmt in ["hbn", "json"]:
             tk.Radiobutton(
-                opt_bar, text=fmt.upper(), variable=self._format_var, value=fmt,
-                bg=_CLR_BG, fg=_CLR_FG, selectcolor=_CLR_BTN, activebackground=_CLR_BG, font=_FONT_UI,
+                opt_bar,
+                text=fmt.upper(),
+                variable=self._format_var,
+                value=fmt,
+                bg=_CLR_BG,
+                fg=_CLR_FG,
+                selectcolor=_CLR_BTN,
+                activebackground=_CLR_BG,
+                font=_FONT_UI,
             ).pack(side=tk.LEFT, padx=4)
         _toolbar_btn(opt_bar, "Diff", self._execute_diff)
 
@@ -1014,6 +1113,7 @@ class DiffPanel(_BasePanel):
             messagebox.showinfo("No Data", "No current value loaded.")
             return
         from hissbytenotation import dumps
+
         try:
             text = dumps(self._app.current_value, validate=False)
         except Exception:
@@ -1031,8 +1131,10 @@ class DiffPanel(_BasePanel):
     @staticmethod
     def _do_generate_random() -> str:
         import random
-        from hissbytenotation.gui.sample_data import GENERATORS
+
         from hissbytenotation.cli.codecs import render_value
+        from hissbytenotation.gui.sample_data import GENERATORS
+
         gen_func = random.choice(list(GENERATORS.values()))
         value = gen_func()
         return render_value(value, "hbn", pretty=True)
@@ -1060,6 +1162,7 @@ class DiffPanel(_BasePanel):
     def _do_diff(left_text: str, right_text: str, fmt: str) -> str:
         from hissbytenotation.cli.codecs import parse_value, render_value
         from hissbytenotation.cli.diff_ops import diff_texts
+
         left_val = parse_value(left_text, "hbn")
         right_val = parse_value(right_text, "hbn")
         left_canon = render_value(left_val, fmt, pretty=True, sort_keys=True)
@@ -1069,9 +1172,13 @@ class DiffPanel(_BasePanel):
         if not right_canon.endswith("\n"):
             right_canon += "\n"
         _exit_code, output = diff_texts(
-            left_canon, right_canon,
-            left_label="left", right_label="right",
-            tool="auto", context=3, output_format=fmt,
+            left_canon,
+            right_canon,
+            left_label="left",
+            right_label="right",
+            tool="auto",
+            context=3,
+            output_format=fmt,
         )
         return output or "(No differences found)"
 
@@ -1144,7 +1251,7 @@ class ReplPanel(_BasePanel):
 
         _make_heading(work, "REPL")
 
-        from hissbytenotation.cli.repl import ReplSession, execute_line, REPL_HELP
+        from hissbytenotation.cli.repl import REPL_HELP, ReplSession, execute_line
 
         self._session = ReplSession(current_value=app.current_value, current_path=app.current_path)
         self._execute_line = execute_line
@@ -1158,7 +1265,11 @@ class ReplPanel(_BasePanel):
         input_bar = _make_toolbar(work)
         _make_label(input_bar, "hbn>").pack(side=tk.LEFT, padx=(0, 4))
         self._input_entry = tk.Entry(
-            input_bar, bg=_CLR_BG_ALT, fg=_CLR_FG, insertbackground=_CLR_FG, font=_FONT_MONO,
+            input_bar,
+            bg=_CLR_BG_ALT,
+            fg=_CLR_FG,
+            insertbackground=_CLR_FG,
+            font=_FONT_MONO,
         )
         self._input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
         self._input_entry.bind("<Return>", lambda _: self._execute())
@@ -1184,6 +1295,7 @@ class ReplPanel(_BasePanel):
         # Capture output
         import io
         import sys
+
         from hissbytenotation.cli.errors import CliError
 
         old_stdout = sys.stdout
@@ -1245,6 +1357,7 @@ class ReplPanel(_BasePanel):
 
 # ── Generate Panel ──────────────────────────────────────────────────
 
+
 class GeneratePanel(_BasePanel):
     """Generate random sample data for exploration."""
 
@@ -1258,7 +1371,9 @@ class GeneratePanel(_BasePanel):
         sel_bar = _make_toolbar(self)
         _make_label(sel_bar, "Template:").pack(side=tk.LEFT, padx=(0, 4))
         self._gen_var = tk.StringVar(value=list(GENERATORS.keys())[0])
-        gen_combo = ttk.Combobox(sel_bar, textvariable=self._gen_var, values=list(GENERATORS.keys()), state="readonly", width=24)
+        gen_combo = ttk.Combobox(
+            sel_bar, textvariable=self._gen_var, values=list(GENERATORS.keys()), state="readonly", width=24
+        )
         gen_combo.pack(side=tk.LEFT, padx=4)
         _toolbar_btn(sel_bar, "Generate", self._generate)
         _toolbar_btn(sel_bar, "Use as Current", self._use_as_current)
@@ -1273,6 +1388,7 @@ class GeneratePanel(_BasePanel):
 
     def _generate(self) -> None:
         from hissbytenotation.gui.sample_data import GENERATORS
+
         name = self._gen_var.get()
         gen_func = GENERATORS.get(name)
         if not gen_func:
@@ -1288,6 +1404,7 @@ class GeneratePanel(_BasePanel):
     @staticmethod
     def _do_generate(gen_func: Any, fmt: str) -> tuple[Any, str]:
         from hissbytenotation.cli.codecs import render_value
+
         value = gen_func()
         text = render_value(value, fmt, pretty=True)
         return value, text
@@ -1319,6 +1436,7 @@ class GeneratePanel(_BasePanel):
         if not path:
             return
         from hissbytenotation.cli.codecs import render_value
+
         try:
             text = render_value(self._last_value, fmt, pretty=True)
             if text and not text.endswith("\n"):
@@ -1390,6 +1508,7 @@ class DoctorPanel(_BasePanel):
     @staticmethod
     def _fetch() -> dict[str, Any]:
         from hissbytenotation.cli.doctor import collect_doctor_report
+
         return collect_doctor_report()
 
     def _display(self, report: dict[str, Any]) -> None:
@@ -1407,9 +1526,9 @@ class DoctorPanel(_BasePanel):
         pkg = report.get("package", {})
         w("  HBN Explorer — Capability Report\n", "heading")
         nl()
-        w(f"  Package : ", "dim")
+        w("  Package : ", "dim")
         w(f"{pkg.get('name', '?')} {pkg.get('version', '?')}\n", "mono")
-        w(f"  Python  : ", "dim")
+        w("  Python  : ", "dim")
         w(f"{pkg.get('python', '?')}\n", "mono")
         nl()
 
@@ -1670,6 +1789,7 @@ class ValidatePanel(_BasePanel):
             messagebox.showinfo("No Data", "No current value loaded.")
             return
         from hissbytenotation import dumps
+
         try:
             text = dumps(self._app.current_value, validate=False)
         except Exception:
@@ -1702,6 +1822,7 @@ class ValidatePanel(_BasePanel):
             return False, "cerberus is not installed.\nInstall with: uv add cerberus  or  pip install cerberus"
 
         from hissbytenotation.cli.codecs import parse_value
+
         schema = parse_value(schema_text, "hbn")
         data = parse_value(data_text, "hbn")
 
@@ -1709,10 +1830,10 @@ class ValidatePanel(_BasePanel):
         valid = v.validate(data)
         if valid:
             return True, "✓  VALID\n\nThe document satisfies the schema."
-        else:
-            import json
-            errors_str = json.dumps(v.errors, indent=2, default=str)
-            return False, f"✗  INVALID\n\nValidation errors:\n{errors_str}"
+        import json
+
+        errors_str = json.dumps(v.errors, indent=2, default=str)
+        return False, f"✗  INVALID\n\nValidation errors:\n{errors_str}"
 
     def _on_success(self, result: tuple[bool, str]) -> None:
         valid, text = result
@@ -1728,6 +1849,7 @@ class ValidatePanel(_BasePanel):
 
 
 # ── Main Application ────────────────────────────────────────────────
+
 
 class HbnApp:
     """Main application window."""
@@ -1761,8 +1883,12 @@ class HbnApp:
 
         # Title in sidebar
         title_lbl = tk.Label(
-            sidebar, text="HBN", bg=_CLR_SIDEBAR, fg=_CLR_ACCENT,
-            font=("Segoe UI", 16, "bold"), pady=12,
+            sidebar,
+            text="HBN",
+            bg=_CLR_SIDEBAR,
+            fg=_CLR_ACCENT,
+            font=("Segoe UI", 16, "bold"),
+            pady=12,
         )
         title_lbl.pack(fill=tk.X)
 
@@ -1807,8 +1933,13 @@ class HbnApp:
         status_bar = tk.Frame(self.root, bg=_CLR_BTN, height=24)
         status_bar.pack(fill=tk.X, side=tk.BOTTOM)
         tk.Label(
-            status_bar, textvariable=self._status_var, bg=_CLR_BTN, fg=_CLR_DIM,
-            font=_FONT_MONO_SMALL, anchor=tk.W, padx=8,
+            status_bar,
+            textvariable=self._status_var,
+            bg=_CLR_BTN,
+            fg=_CLR_DIM,
+            font=_FONT_MONO_SMALL,
+            anchor=tk.W,
+            padx=8,
         ).pack(fill=tk.X)
 
         self.show_panel("dashboard")
@@ -1850,12 +1981,13 @@ class HbnApp:
             self._do_load_file,
             args=(path,),
             on_success=lambda result: self._on_file_loaded(result, path),
-            on_error=lambda exc: self._on_load_error(exc),
+            on_error=self._on_load_error,
         )
 
     @staticmethod
     def _do_load_file(path: str) -> Any:
-        from hissbytenotation.cli.codecs import parse_value, infer_format_from_path
+        from hissbytenotation.cli.codecs import infer_format_from_path, parse_value
+
         text = Path(path).read_text(encoding="utf-8")
         fmt = infer_format_from_path(path, output=False)
         return parse_value(text, fmt)

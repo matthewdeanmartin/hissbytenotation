@@ -10,11 +10,31 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, NoReturn
 
-from hissbytenotation.cli.codecs import infer_format_from_path, normalize_format_name, parse_value
+from hissbytenotation.cli.codecs import (
+    infer_format_from_path,
+    normalize_format_name,
+    parse_value,
+)
 from hissbytenotation.cli.doctor import collect_doctor_report
-from hissbytenotation.cli.errors import CliError, FileIOCliError, InputParseError, MissingValueError, OperationTypeError
-from hissbytenotation.cli.glom_integration import append_value, delete_value, insert_value, query_value, set_value
-from hissbytenotation.cli.merge_ops import CONFLICT_POLICIES, MERGE_STRATEGIES, merge_values
+from hissbytenotation.cli.errors import (
+    CliError,
+    FileIOCliError,
+    InputParseError,
+    MissingValueError,
+    OperationTypeError,
+)
+from hissbytenotation.cli.glom_integration import (
+    append_value,
+    delete_value,
+    insert_value,
+    query_value,
+    set_value,
+)
+from hissbytenotation.cli.merge_ops import (
+    CONFLICT_POLICIES,
+    MERGE_STRATEGIES,
+    merge_values,
+)
 from hissbytenotation.cli.presenters import apply_default, render_output
 
 REPL_HELP = """REPL commands:

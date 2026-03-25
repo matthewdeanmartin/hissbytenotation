@@ -104,6 +104,16 @@ norecursedirs = ["vendor", "scripts"]
 #	slow: marks tests as slow (deselect with '-m "not slow"')
 #	fast: marks tests as fast (deselect with '-m "not fast"')
 
+[tool.coverage.run]
+omit = [
+    "hissbytenotation/gui/*",
+]
+
+[tool.coverage.report]
+omit = [
+    "hissbytenotation/gui/*",
+]
+
 
 [tool.isort]
 default_section = "THIRDPARTY"
@@ -172,3 +182,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["glom", "glom.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cerberus", "cerberus.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["hissbytenotation.gui.app", "hissbytenotation.gui.sample_data"]
+ignore_errors = true

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata
+import json
 import os
 import shutil
 import subprocess
@@ -17,7 +18,12 @@ from hissbytenotation.cli.codecs import (
     normalize_format_name,
     parse_value,
 )
-from hissbytenotation.cli.diff_ops import CANONICAL_DIFF_FORMATS, DIFF_TOOLS, canonicalize_value, diff_texts
+from hissbytenotation.cli.diff_ops import (
+    CANONICAL_DIFF_FORMATS,
+    DIFF_TOOLS,
+    canonicalize_value,
+    diff_texts,
+)
 from hissbytenotation.cli.doctor import collect_doctor_report
 from hissbytenotation.cli.errors import (
     FALSEY_RESULT,
@@ -555,6 +561,7 @@ def build_merge_parent_parser() -> argparse.ArgumentParser:
 def dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Dispatch to the selected command handler."""
     if getattr(args, "gui", False) or args.command == "gui":
+        # pylint: disable=import-outside-toplevel
         from hissbytenotation.gui.app import launch_gui
 
         launch_gui()
@@ -752,7 +759,7 @@ def handle_doctor(args: argparse.Namespace, _parser: argparse.ArgumentParser) ->
 def handle_validate(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Validate data against a cerberus schema."""
     try:
-        import cerberus
+        import cerberus  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
     except ImportError as exc:
         raise ExternalToolError(
             "Validation requires cerberus. Install with: uv add cerberus  or  pip install cerberus"
@@ -768,7 +775,6 @@ def handle_validate(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         except OSError as exc:
             raise FileIOCliError(f"Could not read schema file {args.schema_file}: {exc}") from exc
 
-    from hissbytenotation.cli.codecs import parse_value
     schema = parse_value(schema_src, "hbn")
 
     v = cerberus.Validator(schema)
@@ -776,12 +782,10 @@ def handle_validate(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         if not getattr(args, "quiet", False):
             sys.stdout.write("OK\n")
         return 0
-    else:
-        errors = v.errors
-        if not getattr(args, "quiet", False):
-            import json
-            sys.stdout.write(f"INVALID\n{json.dumps(errors, indent=2, default=str)}\n")
-        raise ValidationFailureError(f"Schema validation failed: {errors}")
+    errors = v.errors
+    if not getattr(args, "quiet", False):
+        sys.stdout.write(f"INVALID\n{json.dumps(errors, indent=2, default=str)}\n")
+    raise ValidationFailureError(f"Schema validation failed: {errors}")
 
 
 def handle_help(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
@@ -979,6 +983,7 @@ def build_powershell_completion(
 
 def handle_gui(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int:
     """Launch the graphical interface."""
+    # pylint: disable=import-outside-toplevel
     from hissbytenotation.gui.app import launch_gui
 
     launch_gui()

@@ -14,14 +14,14 @@ import test.generate as generator
 
 # Check optional dependencies
 try:
-    import hbn_rust
+    pass
 
     HAS_RUST = True
 except ImportError:
     HAS_RUST = False
 
 try:
-    import yaml
+    pass
 
     HAS_YAML = True
 except ImportError:

@@ -24,7 +24,7 @@ isort:
 
 black:  isort 
 	@echo "Formatting code"
-	$(VENV) black . --exclude .venv
+	$(VENV) black .
 
 
 pre-commit:  isort black
@@ -45,7 +45,9 @@ mypy:
 	@echo "Security checks"
 	$(VENV)  mypy hissbytenotation
 
-.PHONY: benchmark perf-wheel perf-python-tests perf-rust-tests perf-rust-only perf-benchmark perf-check perf
+.PHONY: format benchmark perf-wheel perf-python-tests perf-rust-tests perf-rust-only perf-benchmark perf-check perf
+format: isort black
+
 benchmark:
 	@echo "Running benchmarks"
 	$(VENV) python -m benchmark
