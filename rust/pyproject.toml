@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "hissbytenotation"
-version = "0.3.0"
+version = "0.4.0"
 description = "Serialize and deserialize data to ordinary python source notation (hbn)"
 authors = [
     {name = "Matthew Martin", email = "matthewdeanmartin@gmail.com"},
@@ -51,4 +51,7 @@ all = ["black", "glom", "cerberus"]
 features = ["pyo3/extension-module"]
 python-source = ".."
 python-packages = ["hissbytenotation"]
+include = [
+    { path = "hissbytenotation/**/*.py", format = ["sdist", "wheel"] },
+]
 module-name = "hissbytenotation.hbn_rust"
