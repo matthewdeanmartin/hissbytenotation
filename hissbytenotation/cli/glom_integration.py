@@ -31,8 +31,7 @@ def ensure_glom_available() -> None:
     """Raise a CLI-facing error when glom is unavailable."""
     if glom is None:
         raise GlomCliError(
-            "Glom integration requires the optional glom extra. "
-            f"{all_or_specific_extra_install_hint('glom')}"
+            "Glom integration requires the optional glom extra. " f"{all_or_specific_extra_install_hint('glom')}"
         )
 
 

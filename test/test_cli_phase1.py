@@ -164,8 +164,8 @@ def test_fmt_missing_dependency_returns_all_and_specific_hint(capsys, monkeypatc
 
     assert exit_code == EXTERNAL_TOOL_MISSING
     assert stdout == ""
-    assert 'hissbytenotation[all]' in stderr
-    assert 'hissbytenotation[fmt]' in stderr
+    assert "hissbytenotation[all]" in stderr
+    assert "hissbytenotation[fmt]" in stderr
 
 
 def test_help_shell_topic(capsys, monkeypatch):
