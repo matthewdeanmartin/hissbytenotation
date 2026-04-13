@@ -762,7 +762,9 @@ def handle_validate(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     try:
         import cerberus  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
     except ImportError as exc:
-        raise ExternalToolError(f"Validation requires cerberus. {all_or_specific_extra_install_hint('validate')}") from exc
+        raise ExternalToolError(
+            f"Validation requires cerberus. {all_or_specific_extra_install_hint('validate')}"
+        ) from exc
 
     value = load_input_value(args)
 
