@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -56,7 +55,19 @@ def test_rust_wheel_includes_python_package_contents(tmp_path: Path) -> None:
     wheel_dir.mkdir()
 
     _run_checked(
-        [uv_executable, "run", "--with", "build", "python", "-m", "build", "--wheel", "--outdir", str(wheel_dir), "rust"],
+        [
+            uv_executable,
+            "run",
+            "--with",
+            "build",
+            "python",
+            "-m",
+            "build",
+            "--wheel",
+            "--outdir",
+            str(wheel_dir),
+            "rust",
+        ],
         cwd=REPO_ROOT,
     )
 
@@ -64,9 +75,7 @@ def test_rust_wheel_includes_python_package_contents(tmp_path: Path) -> None:
     with zipfile.ZipFile(wheel_path) as wheel_archive:
         wheel_names = set(wheel_archive.namelist())
         dist_info_prefix = next(
-            name.rsplit("/", 1)[0]
-            for name in wheel_names
-            if name.endswith(".dist-info/entry_points.txt")
+            name.rsplit("/", 1)[0] for name in wheel_names if name.endswith(".dist-info/entry_points.txt")
         )
         entry_points = wheel_archive.read(f"{dist_info_prefix}/entry_points.txt").decode("utf-8")
 
@@ -80,7 +89,9 @@ def test_rust_wheel_includes_python_package_contents(tmp_path: Path) -> None:
     }
     missing_members = expected_members - wheel_names
     assert not missing_members, f"wheel is missing package files: {sorted(missing_members)}"
-    assert any(name.startswith("hissbytenotation/hbn_rust.") for name in wheel_names), "wheel is missing the Rust extension"
+    assert any(
+        name.startswith("hissbytenotation/hbn_rust.") for name in wheel_names
+    ), "wheel is missing the Rust extension"
     assert "hbn=hissbytenotation.cli:main" in entry_points
     assert "hissbytenotation-gui=hissbytenotation.gui.app:launch_gui" in entry_points
 
@@ -114,9 +125,5 @@ def test_rust_wheel_includes_python_package_contents(tmp_path: Path) -> None:
     if not _supports_tkinter(sys.executable):
         pytest.skip("tkinter is unavailable in this Python build")
 
-    gui_import_check = (
-        f"import sys; "
-        f"sys.path.insert(0, r'{install_dir}'); "
-        f"import hissbytenotation.gui.app"
-    )
+    gui_import_check = f"import sys; " f"sys.path.insert(0, r'{install_dir}'); " f"import hissbytenotation.gui.app"
     _run_checked([sys.executable, "-c", gui_import_check], cwd=REPO_ROOT)

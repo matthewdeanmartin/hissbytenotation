@@ -102,8 +102,8 @@ def test_validate_missing_dependency_returns_all_and_specific_hint(capsys, monke
 
     assert exit_code == EXTERNAL_TOOL_MISSING
     assert stdout == ""
-    assert 'hissbytenotation[all]' in stderr
-    assert 'hissbytenotation[validate]' in stderr
+    assert "hissbytenotation[all]" in stderr
+    assert "hissbytenotation[validate]" in stderr
 
 
 def test_doctor_reports_diff_capability(capsys, monkeypatch):
