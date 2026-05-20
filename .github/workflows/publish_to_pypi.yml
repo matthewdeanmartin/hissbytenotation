@@ -63,12 +63,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
 
-      - name: Rust cache
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          workspaces: rust
-          save-if: "false"
-
       - name: Build wheels
         uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
         with:
