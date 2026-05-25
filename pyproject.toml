@@ -194,3 +194,6 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["hissbytenotation.gui.app", "hissbytenotation.gui.sample_data"]
 ignore_errors = true
+
+[tool.uv]
+universal = true
