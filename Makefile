@@ -85,3 +85,26 @@ check: test pylint bandit pre-commit mypy
 .PHONY: publish
 publish: check
 	rm -rf dist && $(VENV) hatch build
+
+# ── Dogfooding targets (independent, not wired into check) ───────────────────
+
+.PHONY: version-check
+version-check:
+	@uv run jiggle_version check
+
+.PHONY: dev-status
+dev-status:
+	@uv run troml-dev-status validate .
+
+.PHONY: prerelease-check
+prerelease-check: version-check dev-status
+	@echo "Pre-release checks passed."
+
+.PHONY: dont-be-lazy
+dont-be-lazy:
+	@uv run dont_be_lazy --root . --no-color summary
+	@uv run dont_be_lazy --root . --no-color scan hissbytenotation --no-config-suppressions || true
+
+.PHONY: pydoc-docs
+pydoc-docs:
+	@uv run pydoc_fork hissbytenotation -o ./pydoc/
