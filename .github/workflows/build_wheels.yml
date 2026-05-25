@@ -51,7 +51,7 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: ${{ matrix.name == 'macos-x86_64' && 'PATH="$HOME/.cargo/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=10.12' || 'PATH="$HOME/.cargo/bin:$PATH"' }}
           CIBW_BEFORE_BUILD: "pip install maturin"
           CIBW_BEFORE_BUILD_LINUX: >
-            curl https://sh.rustup.rs -sSf | sh -s -- -y &&
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
             pip install maturin
 
       - name: Upload wheels

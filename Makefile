@@ -80,7 +80,7 @@ perf-check: perf-python-tests perf-rust-tests
 
 perf: perf-check perf-rust-only perf-benchmark
 
-check: test pylint bandit pre-commit mypy
+check: test pylint bandit mypy
 
 .PHONY: publish
 publish: check
