@@ -1,6 +1,6 @@
+import builtins
 import io
 import json
-import builtins
 import sys
 from types import SimpleNamespace
 

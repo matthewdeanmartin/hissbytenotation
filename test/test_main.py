@@ -1,5 +1,6 @@
-import hissbytenotation as hbn
 from test.generate import generate_test_data
+
+import hissbytenotation as hbn
 
 
 def test_go():

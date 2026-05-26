@@ -1,7 +1,6 @@
 import io
 import sys
 
-
 from hissbytenotation import loads as hbn_loads
 from hissbytenotation.cli import main
 from hissbytenotation.cli.errors import (

@@ -3,7 +3,12 @@ import json
 import sys
 
 from hissbytenotation.cli import main
-from hissbytenotation.cli.errors import EXTERNAL_TOOL_MISSING, FALSEY_RESULT, TYPE_MISMATCH, UNSUPPORTED_FORMAT
+from hissbytenotation.cli.errors import (
+    EXTERNAL_TOOL_MISSING,
+    FALSEY_RESULT,
+    TYPE_MISMATCH,
+    UNSUPPORTED_FORMAT,
+)
 
 
 class FakeStdin(io.StringIO):

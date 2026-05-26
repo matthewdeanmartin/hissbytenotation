@@ -1,9 +1,11 @@
-import timeit
-import pickle
 import json
-import yaml
-import hissbytenotation as hbn
+import pickle
 import test.generate as generator
+import timeit
+
+import yaml
+
+import hissbytenotation as hbn
 
 data = generator.generate_test_data(no_bytes=True, no_sets=True, no_elipsis=True)
 

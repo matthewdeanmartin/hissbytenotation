@@ -5,12 +5,12 @@ Run with:
     python -m benchmark
 """
 
-import pickle
 import json
+import pickle
+import test.generate as generator
 import timeit
 
 import hissbytenotation as hbn
-import test.generate as generator
 
 # Check optional dependencies
 try:

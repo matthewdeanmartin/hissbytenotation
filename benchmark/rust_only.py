@@ -1,10 +1,10 @@
 """Benchmark only the Rust parser path."""
 
 import argparse
+import test.generate as generator
 import timeit
 
 import hissbytenotation as hbn
-import test.generate as generator
 
 
 def run_rust_only(count: int = 5000) -> None:

@@ -14,8 +14,9 @@ for module_name in ("hissbytenotation.hbn_rust", "hbn_rust"):
 
 HAS_RUST = RUST_MODULE is not None
 
-import hissbytenotation as hbn
-from test.generate import generate_test_data
+from test.generate import generate_test_data  # noqa: E402
+
+import hissbytenotation as hbn  # noqa: E402
 
 
 @pytest.mark.skipif(not HAS_RUST, reason="hbn_rust not installed")
