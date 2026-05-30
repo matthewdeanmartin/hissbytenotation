@@ -30,7 +30,7 @@ dependencies = [
 
 [project.urls]
 "Bug Tracker" = "https://github.com/matthewdeanmartin/hissbytenotation/issues"
-"Change Log" = "https://github.com/matthewdeanmartin/hissbytenotation/blob/main/CHANGES.md"
+"Change Log" = "https://github.com/matthewdeanmartin/hissbytenotation/blob/main/CHANGELOG.md"
 
 [project.scripts]
 hbn = "hissbytenotation.cli:main"

@@ -293,3 +293,10 @@ python -m benchmark -n 5000  # more iterations
 
 Possibly [astor](https://pypi.org/project/astor/) which serializes to a string representation of the AST, which looks
 nothing like the source code, nor json.
+
+## Project Links
+
+- [GitHub](https://github.com/matthewdeanmartin/hissbytenotation)
+- [PyPI](https://pypi.org/project/hissbytenotation/)
+- [Bug Tracker](https://github.com/matthewdeanmartin/hissbytenotation/issues)
+- [Change Log](https://github.com/matthewdeanmartin/hissbytenotation/blob/main/CHANGELOG.md)
